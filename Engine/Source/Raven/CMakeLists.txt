@@ -10,8 +10,8 @@ if(NOT RAVEN_SOURCES)
   return()
 endif()
 
-add_library(Raven ${RAVEN_SOURCES} ${RAVEN_HEADERS})
-add_library(Raven::Engine ALIAS Raven)
+add_executable(Raven ${RAVEN_SOURCES} ${RAVEN_HEADERS})
+add_executable(Raven::Engine ALIAS Raven)
 
 target_include_directories(Raven
   PUBLIC
@@ -24,4 +24,5 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${RAVEN_SOURCES} ${RAVEN_H
 target_link_libraries(Raven
   PRIVATE
     Raven::ProjectOptions
-    Raven::ProjectWarnings)
+    Raven::ProjectWarnings
+    mimalloc-static)

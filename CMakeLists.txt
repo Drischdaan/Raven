@@ -13,4 +13,6 @@ list(APPEND CMAKE_MODULE_PATH
 include(ProjectOptions)
 raven_setup_options()
 
+include(Dependencies)
+
 add_subdirectory(Engine/Source/Raven)
