@@ -15,7 +15,7 @@ Software/Tools you need to install before setting up the development environment
 - [Python >=3.14.6](https://www.python.org/downloads/)
 - [CMake >=4.2.3](https://cmake.org/download/)
 - [Ninja](https://ninja-build.org/) (used for builds and for the clang-tidy compile database)
-- On Windows [Rider](https://jetbrains.com/) [Visual Studio 2022](https://visualstudio.microsoft.com/) for the generated `.sln`
+- On Windows [Rider](https://jetbrains.com/) or [Visual Studio 2026](https://visualstudio.microsoft.com/) for the generated `.sln`
 
 ## 🪹 Nest (CLI Tool)
 
@@ -23,7 +23,7 @@ Nest is Ravens CLI tool, which you can use to run commands on the workspace.
 
 ### Available Commands
 
-- `setup` - Installs git hooks and generates project files for your platform (Visual Studio `.sln` on Windows, Ninja elsewhere)
+- `setup` - Installs git hooks and generates project files for your platform (Visual Studio `.slnx` on Windows, Ninja files elsewhere)
 - `lint` - Runs clang-tidy on the codebase
 - `format` - Runs clang-format on the codebase
 
@@ -31,5 +31,5 @@ Nest is Ravens CLI tool, which you can use to run commands on the workspace.
 
 1. Clone the repository `git clone https://github.com/Drischdaan/Raven`
 2. Download and install [Prerequisites](#️-prerequisites)
-3. Execute setup script `.\Nest.bat setup`(Windows) or `./Nest.sh setup`(Linux)
+3. Execute setup script `.\Nest.bat setup` (Windows) or `./Nest.sh setup` (Linux)
 4. Open Project Files with the IDE of your choice
