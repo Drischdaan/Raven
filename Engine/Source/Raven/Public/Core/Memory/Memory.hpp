@@ -10,6 +10,9 @@
 class FMemory
 {
 public:
+	static void Initialize();
+	static void Shutdown();
+
 	static void* Allocate(size64 Size, size64 Alignment = 8);
 	static void* Reallocate(void* Pointer, size64 Size, size64 Alignment = 8);
 

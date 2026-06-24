@@ -2,7 +2,18 @@
 
 #include "Core/Memory/Memory.hpp"
 
+#include "Core/Containers/MemoryResource.hpp"
+
+#include <deque>
+#include <memory_resource>
 #include <mimalloc.h>
+
+void FMemory::Initialize()
+{
+	std::pmr::set_default_resource(FMemoryResource::Get());
+}
+
+void FMemory::Shutdown() {}
 
 void* FMemory::Allocate(const size64 Size, const size64 Alignment)
 {
