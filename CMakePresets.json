@@ -1,0 +1,62 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 4,
+    "minor": 2,
+    "patch": 3
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default (Ninja, Debug)",
+      "description": "Cross-platform Ninja build. Emits compile_commands.json for the Nest tooling.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "default",
+      "displayName": "Release (Ninja)",
+      "description": "Optimized cross-platform Ninja build.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "vs",
+      "displayName": "Visual Studio 2022 (.sln)",
+      "description": "Generates a Visual Studio solution. Pair with the 'tooling' preset so clang-tidy has a compile database.",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/Build",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "tooling",
+      "displayName": "Tooling compile database (Ninja)",
+      "description": "Ninja tree used only to produce compile_commands.json for clang-tidy. Matches what `Nest setup` creates alongside a Visual Studio solution.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/Build/Tooling",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    }
+  ]
+}

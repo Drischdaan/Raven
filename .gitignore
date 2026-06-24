@@ -1,0 +1,4 @@
+__pycache__/
+
+# CMake build output (root only; Engine/Build holds CMake module sources)
+/Build/
