@@ -4,5 +4,5 @@
 
 #include <vector>
 
-template <typename T>
-using TVector = std::vector<T>;
+template <typename T> requires std::is_object_v<T>
+using TVector = std::pmr::vector<T>;

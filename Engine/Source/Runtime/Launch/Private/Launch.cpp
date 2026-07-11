@@ -16,6 +16,8 @@ using FTextureHandle = THandle<FTexture>;
 
 int main()
 {
+    Memory::Initialize();
+
     TSparseHandlePool<FTexture> TexturePool;
     const FTextureHandle Handle1 = TexturePool.Create(FTexture{.Width = 1280, .Height = 720});
     const FTextureHandle Handle2 = TexturePool.Create(FTexture{.Width = 400, .Height = 400});
@@ -25,5 +27,7 @@ int main()
 
     TexturePool.Destroy(Handle1);
     TexturePool.Destroy(Handle2);
+
+    Memory::Shutdown();
     return 0;
 }

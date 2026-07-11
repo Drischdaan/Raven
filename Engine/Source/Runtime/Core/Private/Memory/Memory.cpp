@@ -2,12 +2,26 @@
 
 #include "Memory/Memory.hpp"
 
+#include <deque>
+#include <memory_resource>
+
 #include "CoreAssertions.hpp"
 #include "mimalloc.h"
+
+#include "Memory/MemoryResource.hpp"
 
 #if RAVEN_PLATFORM_WINDOWS
 #   include <Windows.h>
 #endif
+
+void Memory::Initialize() noexcept
+{
+    std::pmr::set_default_resource(FMemoryResource::Get());
+}
+
+void Memory::Shutdown() noexcept
+{
+}
 
 void* Memory::Allocate(const size64 Size, const size64 Alignment) noexcept
 {
