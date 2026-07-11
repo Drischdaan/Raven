@@ -2,9 +2,9 @@
 
 #include <iostream>
 
-#include "Memory/Handle.hpp"
+#include "Error/Result.hpp"
+
 #include "Memory/Memory.hpp"
-#include "Memory/Containers/SparseHandlePool.hpp"
 
 struct FTexture
 {
@@ -12,22 +12,33 @@ struct FTexture
     uint32 Height = 0;
 };
 
-using FTextureHandle = THandle<FTexture>;
+TResult<FTexture> CreateTexture(const uint32 Width, const uint32 Height)
+{
+    if (Width == 0 || Height == 0)
+    {
+        return MakeError(RAVEN_DOMAIN_CORE, RAVEN_ERROR_CORE_UNKNOWN);
+    }
+    return FTexture{.Width = Width, .Height = Height};
+}
+
+TResult<int> LoadTexture()
+{
+    RAVEN_TRY(Texture, CreateTexture(120, 120));
+    std::cout << "Texture: " << Texture.Width << "x" << Texture.Height << std::endl;
+    return Texture.Width * Texture.Height;
+}
 
 int main()
 {
     Memory::Initialize();
 
-    TSparseHandlePool<FTexture> TexturePool;
-    const FTextureHandle Handle1 = TexturePool.Create(FTexture{.Width = 1280, .Height = 720});
-    const FTextureHandle Handle2 = TexturePool.Create(FTexture{.Width = 400, .Height = 400});
-
-    std::cout << "Handle1: " << TexturePool.Resolve(Handle1).Width << "x" << TexturePool.Resolve(Handle1).Height << std::endl;
-    std::cout << "Handle2: " << TexturePool.Resolve(Handle2).Width << "x" << TexturePool.Resolve(Handle2).Height << std::endl;
-
-    TexturePool.Destroy(Handle1);
-    TexturePool.Destroy(Handle2);
+    TResult<int> Result = LoadTexture();
+    if (!Result)
+    {
+        std::cout << "Error" << std::endl;
+        return 0;
+    }
 
     Memory::Shutdown();
-    return 0;
+    return Result.GetValue();
 }
