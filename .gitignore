@@ -1,0 +1,11 @@
+Binaries/
+Intermediates/
+.deps/
+vsxmake2026/
+Engine/Build/Output/
+
+*.slnx
+
+.idea/
+.vscode/
+.xmake/
