@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & Test (${{ matrix.mode }})
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [debug, development]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: '>=3.0.9'
+
+      - name: Cache xmake packages
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/.xmake/packages
+          key: xmake-${{ runner.os }}-${{ matrix.mode }}-${{ hashFiles('xmake.lua') }}
+          restore-keys: |
+            xmake-${{ runner.os }}-${{ matrix.mode }}-
+            xmake-${{ runner.os }}-
+
+      - name: Update xmake package repositories
+        run: xmake repo --update
+
+      - name: Configure
+        run: xmake config --plat=windows --arch=x64 --mode=${{ matrix.mode }} --yes
+
+      - name: Build
+        run: xmake build --yes --all
+
+      - name: Run all test targets
+        run: xmake run --group=Tests
