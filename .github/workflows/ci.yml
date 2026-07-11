@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [debug, development]
+        mode: [debug, development, shipping]
 
     steps:
       - name: Checkout
