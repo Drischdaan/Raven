@@ -1,8 +1,3 @@
+// Copyright RavenStormStudio 2026 All Rights Reserved Copyright
+
 #include "RavenCore.hpp"
-
-#include <iostream>
-
-void Test()
-{
-  std::cout << "Hello from RavenCore!" << std::endl;
-}

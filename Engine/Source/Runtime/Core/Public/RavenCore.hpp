@@ -1,7 +1,8 @@
+// Copyright RavenStormStudio 2026 All Rights Reserved Copyright
+
 #pragma once
 
-#include "CoreTypes.hpp"
 #include "CoreCompiler.hpp"
+#include "CoreMacros.hpp"
 #include "CorePlatform.hpp"
-
-CORE_API void Test();
+#include "CoreTypes.hpp"
