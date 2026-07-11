@@ -26,7 +26,7 @@ function raven_engine_target(name)
       end
     else
       set_kind('static')
-      add_defines(string.upper(name) .. '_API')
+      add_defines(string.upper(name) .. '_API=', { public = true })
     end
 
     raven_add_default_files()
