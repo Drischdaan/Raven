@@ -11,8 +11,8 @@
 
 namespace Memory
 {
-    void Initialize() noexcept;
-    void Shutdown() noexcept;
+    CORE_API void Initialize() noexcept;
+    CORE_API void Shutdown() noexcept;
 
     [[nodiscard]] CORE_API void* Allocate(size64 Size, size64 Alignment = RAVEN_PLATFORM_POINTER_ALIGNMENT) noexcept;
     [[nodiscard]] CORE_API void* Reallocate(void* Pointer, size64 Size, size64 Alignment = RAVEN_PLATFORM_POINTER_ALIGNMENT) noexcept;

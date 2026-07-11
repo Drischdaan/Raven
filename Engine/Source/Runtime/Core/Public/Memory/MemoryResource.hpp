@@ -8,7 +8,7 @@
 
 class FLinearAllocator;
 
-class FMemoryResource : public std::pmr::memory_resource
+class CORE_API FMemoryResource : public std::pmr::memory_resource
 {
 private:
     void* do_allocate(size64 Size, size64 Alignment) override;
@@ -19,7 +19,7 @@ public:
     static FMemoryResource* Get();
 };
 
-class FLinearMemoryResource : public std::pmr::memory_resource
+class CORE_API FLinearMemoryResource : public std::pmr::memory_resource
 {
 public:
     explicit FLinearMemoryResource(FLinearAllocator& InLinearAllocator);
