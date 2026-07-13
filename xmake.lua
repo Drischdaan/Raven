@@ -32,7 +32,7 @@ if is_mode('debug') then
   add_defines('RAVEN_BUILD_MODULAR')
   add_defines('RAVEN_MODE_DEBUG', 'RAVEN_MODE="Debug"')
   
-  add_defines('RAVEN_ENABLE_ASSERTS=1')
+  add_defines('RAVEN_ENABLE_ASSERTS=1', 'RAVEN_PROFILER_ENABLED=1', 'TRACY_ENABLE')
 elseif is_mode('development') then
   set_symbols('debug')
   set_optimize('fastest')
@@ -41,7 +41,7 @@ elseif is_mode('development') then
   add_defines('RAVEN_BUILD_MODULAR')
   add_defines('RAVEN_MODE_DEVELOPMENT', 'RAVEN_MODE="Development"')
 
-  add_defines('RAVEN_ENABLE_ASSERTS=0')
+  add_defines('RAVEN_ENABLE_ASSERTS=0', 'RAVEN_PROFILER_ENABLED=1', 'TRACY_ENABLE')
 elseif is_mode('shipping') then
   set_symbols('debug')
   set_optimize('aggressive')
@@ -50,7 +50,7 @@ elseif is_mode('shipping') then
   add_defines('RAVEN_BUILD_MONOLITHIC')
   add_defines('RAVEN_MODE_SHIPPING', 'RAVEN_MODE="Shipping"')
 
-  add_defines('RAVEN_ENABLE_ASSERTS=0')
+  add_defines('RAVEN_ENABLE_ASSERTS=0', 'RAVEN_PROFILER_ENABLED=0')
 end
 
 if is_plat('windows') then
@@ -73,6 +73,8 @@ rule_end()
 add_requires("snitch 1.3.2")
 add_requires('glfw 3.4')
 add_requires('mimalloc 3.3.2', { configs = { cxx = true } })
+add_requires('glm 1.0.3', { configs = { cxx_standard = '20' } })
+add_requires('tracy 0.13.0')
 
 -- Helper Functions
 includes('Engine/Build/targets.lua')
