@@ -23,7 +23,7 @@ concept CMutex = std::default_initializable<T> && !std::copy_constructible<T> &&
 };
 
 template <typename T, typename TMutex>
-concept CConditionVariable = std::default_initializable<T> && !std::copy_constructible<T> && requires(T ConditionVariable, TMutex Mutex, std::chrono::nanoseconds Timeout)
+concept CConditionVariable = std::default_initializable<T> && !std::copy_constructible<T> && requires(T ConditionVariable, TMutex Mutex, std::chrono::milliseconds Timeout)
 {
     { ConditionVariable.Wait(Mutex) } -> std::same_as<void>;
     { ConditionVariable.Wait(Mutex, Timeout) } -> std::same_as<bool8>;
