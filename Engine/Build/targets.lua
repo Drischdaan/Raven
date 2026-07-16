@@ -1,6 +1,15 @@
 function raven_target(name, group)
   target(name)
     set_group(group)
+    
+    after_build(function (target)                                                                                                                                                                                                                                                                                     
+        for _, pkg in pairs(target:pkgs()) do                                                                                                                                                                                                                                                                           
+          local bindir = path.join(pkg:installdir(), 'bin')                                                                                                                                                                                                                                                             
+          if os.isdir(bindir) then                                                                                                                                                                                                                                                                                      
+            os.trycp(path.join(bindir, '*.dll'), target:targetdir())                                                                                                                                                                                                                                                    
+          end                                                                                                                                                                                                                                                                                                           
+        end                                                                                                                                                                                                                                                                                                             
+      end)
 end
 
 function raven_end_target()
