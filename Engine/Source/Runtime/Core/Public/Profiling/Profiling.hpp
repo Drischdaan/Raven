@@ -49,7 +49,11 @@ namespace Profiler
 #   define RAVEN_PROFILE_SRCLOC(Definition) \
         static constexpr tracy::SourceLocationData CONCAT(RavenProfilerSrcLoc, __LINE__) = { (Definition.Name), __FUNCTION__, __FILE__, static_cast<uint32>(__LINE__), (Definition).Color }
 
-#   define RAVEN_PROFILE_FUNCTION(ColorValue) \
+#   define RAVEN_PROFILE_FUNCTION() \
+        static constexpr tracy::SourceLocationData CONCAT(RavenProfilerSrcLoc, __LINE__) = { nullptr, __FUNCTION__, __FILE__, static_cast<uint32>(__LINE__) }; \
+        tracy::ScopedZone CONCAT(RavenProfilerZone, __LINE__) = { &CONCAT(RavenProfilerSrcLoc, __LINE__), true }
+
+#   define RAVEN_PROFILE_FUNCTION_COLOR(ColorValue) \
         static constexpr tracy::SourceLocationData CONCAT(RavenProfilerSrcLoc, __LINE__) = { nullptr, __FUNCTION__, __FILE__, static_cast<uint32>(__LINE__), (ColorValue) }; \
         tracy::ScopedZone CONCAT(RavenProfilerZone, __LINE__) = { &CONCAT(RavenProfilerSrcLoc, __LINE__), true }
 
@@ -69,6 +73,10 @@ namespace Profiler
 #   define RAVEN_PROFILE_FRAME_MARK_NAMED(Name) FrameMarkNamed((Name))
 #   define RAVEN_PROFILE_THREAD(Name) tracy::SetThreadName((Name))
 #   define RAVEN_PROFILE_PLOT(Name, Value) TracyPlot((Name), (Value))
+
+#   define RAVEN_PROFILE_FIBER_ENTER(FiberName) TracyFiberEnter((FiberName))
+#   define RAVEN_PROFILE_FIBER_ENTER_HINT(FiberName, GroupHint) TracyFiberEnterHint((FiberName), (GroupHint))
+#   define RAVEN_PROFILE_FIBER_LEAVE() TracyFiberLeave
 
 #else
 #   define RAVEN_DEFINE_PROFILER_ZONE(...)
