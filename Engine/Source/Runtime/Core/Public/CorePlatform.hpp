@@ -7,6 +7,7 @@
 // - RAVEN_PLATFORM_LINUX
 // - RAVEN_PLATFORM_WINDOWS
 // - RAVEN_PLATFORM_NAME
+// - RAVEN_PLATFORM_NAME_RAW
 // - RAVEN_PLATFORM_X64
 // - RAVEN_PLATFORM_X32
 // - RAVEN_POINTER_SIZE
@@ -16,6 +17,7 @@
 #if defined(__linux) || defined(__linux__)
 #	define RAVEN_PLATFORM_LINUX 1
 #	define RAVEN_PLATFORM_NAME "Linux"
+#	define RAVEN_PLATFORM_NAME_RAW Linux
 #	ifdef __x86_64__
 #		define RAVEN_PLATFORM_X64 1
 #		define RAVEN_PLATFORM_X32 0
@@ -26,6 +28,7 @@
 #elif defined(_WIN32) || defined(__WIN32__) || defined(_WIN64)
 #	define RAVEN_PLATFORM_WINDOWS 1
 #	define RAVEN_PLATFORM_NAME "Windows"
+#	define RAVEN_PLATFORM_NAME_RAW Windows
 #	ifdef _WIN64
 #		define RAVEN_PLATFORM_X64 1
 #		define RAVEN_PLATFORM_X32 0
