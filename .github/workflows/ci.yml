@@ -2,9 +2,15 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
+    paths-ignore:
+      - .github/ISSUE_TEMPLATE/**
+      - Documentation/**
   pull_request:
-    branches: [main]
+    branches: [main, develop]
+    paths-ignore:
+      - .github/ISSUE_TEMPLATE/**
+      - Documentation/**
   workflow_dispatch:
 
 concurrency:
