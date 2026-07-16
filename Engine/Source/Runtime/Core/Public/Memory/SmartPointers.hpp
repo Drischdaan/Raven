@@ -7,7 +7,24 @@
 #include "Memory.hpp"
 
 template <typename T>
-using TUniquePtr = std::unique_ptr<T>;
+struct TSmartDeleter
+{
+    constexpr TSmartDeleter() noexcept = default;
+
+    template <typename TOther> requires std::is_convertible_v<TOther*, T*>
+    constexpr TSmartDeleter(const TSmartDeleter<TOther>&) noexcept
+    {
+    }
+
+    constexpr void operator()(T* Pointer) const noexcept
+    {
+        static_assert(sizeof(Pointer) > 0, "Can't delete an incomplete type");
+        Memory::Delete(Pointer);
+    }
+};
+
+template <typename T>
+using TUniquePtr = std::unique_ptr<T, TSmartDeleter<T>>;
 
 template <typename T>
 using TSharedPtr = std::shared_ptr<T>;
@@ -25,5 +42,5 @@ template <typename T, typename... TArguments>
 {
     void* Pointer = Memory::Allocate(sizeof(T), alignof(T));
     RAVEN_CORE_ASSERT(Pointer != nullptr, "Failed to allocate memory for shared pointer");
-    return TSharedPtr<T>(std::construct_at(static_cast<T*>(Pointer), std::forward<TArguments>(Arguments)...));
+    return TSharedPtr<T>(std::construct_at(static_cast<T*>(Pointer), std::forward<TArguments>(Arguments)...), TSmartDeleter<T>());
 }
