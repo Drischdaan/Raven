@@ -28,3 +28,10 @@ Software/Tools you need to install before setting up the development environment
 2. Download and install [Prerequisites](#️-prerequisites)
 3. Execute setup script `.\Setup.ps1` (Windows)
 4. Open the generated Project Files (`Raven.slnx` on Windows) with the IDE of your choice
+
+## 🪹 Branch Structure
+
+- `main` - Most stable branch with the latest stable release/features
+- `develop` - Branch for active development
+  - `feature/<feature-name>` - Feature branches
+  - `fix/<fix-name>` - Bugfix branches
