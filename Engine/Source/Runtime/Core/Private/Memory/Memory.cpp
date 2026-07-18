@@ -10,6 +10,8 @@
 
 #include "Memory/MemoryResource.hpp"
 
+#include "Profiling/Profiling.hpp"
+
 #if RAVEN_PLATFORM_WINDOWS
 #   include <Windows.h>
 #endif
@@ -26,21 +28,25 @@ void Memory::Shutdown() noexcept
 void* Memory::Allocate(const size64 Size, const size64 Alignment) noexcept
 {
     RAVEN_CORE_ASSERT(Size > 0, "Size must be greater than 0");
-
-    return mi_malloc_aligned(Size, Alignment);
+    void* Pointer = mi_malloc_aligned(Size, Alignment);
+    RAVEN_PROFILE_ALLOCATION(Pointer, GetAllocationSize(Pointer));
+    return Pointer;
 }
 
 void* Memory::Reallocate(void* Pointer, const size64 Size, const size64 Alignment) noexcept
 {
     RAVEN_CORE_ASSERT(Size > 0, "Size must be greater than 0");
-
-    return mi_realloc_aligned(Pointer, Size, Alignment);
+    RAVEN_PROFILE_FREE(Pointer);
+    void* NewPointer = mi_realloc_aligned(Pointer, Size, Alignment);
+    RAVEN_PROFILE_ALLOCATION(NewPointer, GetAllocationSize(NewPointer));
+    return NewPointer;
 }
 
 void Memory::Free(void* Pointer, const size64 Alignment) noexcept
 {
     RAVEN_CORE_ASSERT(Pointer != nullptr, "Pointer must not be nullptr");
 
+    RAVEN_PROFILE_FREE(Pointer);
     mi_free_aligned(Pointer, Alignment);
 }
 

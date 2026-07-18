@@ -35,3 +35,9 @@ Software/Tools you need to install before setting up the development environment
 - `develop` - Branch for active development
   - `feature/<feature-name>` - Feature branches
   - `fix/<fix-name>` - Bugfix branches
+
+## 💼 Job System
+
+Raven has a custom built job system that uses a fiber-based approach.
+
+![](./Documentation/Assets/Images/JobSystem-Example.png)

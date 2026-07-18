@@ -65,9 +65,14 @@ namespace Profiler
         RAVEN_PROFILE_ZONE(Definition); \
         CONCAT(RavenProfilerZone, __LINE__).Name((SuffixText), (SuffixLength))
 
+#   define RAVEN_PROFILE_ZONE_CUSTOM(Name, Color) ZoneScopedNC(Name, Color)
+
 #   define RAVEN_PROFILE_ZONE_TEXT(Definition, Text, TextLength) \
         RAVEN_PROFILE_ZONE(Definition); \
         CONCAT(RavenProfilerZone, __LINE__).Text((Text), (TextLength))
+
+#   define RAVEN_PROFILE_ALLOCATION(Pointer, Size) TracyAlloc(Pointer, Size)
+#   define RAVEN_PROFILE_FREE(Pointer) TracyFree(Pointer)
 
 #   define RAVEN_PROFILE_FRAME_MARK() FrameMark
 #   define RAVEN_PROFILE_FRAME_MARK_NAMED(Name) FrameMarkNamed((Name))
@@ -85,6 +90,8 @@ namespace Profiler
 #   define RAVEN_PROFILE_ZONE(...)               ((void)0)
 #   define RAVEN_PROFILE_ZONE_DYNAMIC(...)               ((void)0)
 #   define RAVEN_PROFILE_ZONE_TEXT(...)               ((void)0)
+#   define RAVEN_PROFILE_ALLOCATION(...) ((void)0)
+#   define RAVEN_PROFILE_FREE(...) ((void)0)
 #   define RAVEN_PROFILE_FRAME_MARK(...)               ((void)0)
 #   define RAVEN_PROFILE_FRAME_MARK_NAMED(...)               ((void)0)
 #   define RAVEN_PROFILE_THREAD(...)               ((void)0)

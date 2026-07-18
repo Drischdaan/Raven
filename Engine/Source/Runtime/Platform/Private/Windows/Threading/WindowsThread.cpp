@@ -8,18 +8,22 @@
 
 #include "Memory/Memory.hpp"
 
+#include "Profiling/Profiling.hpp"
+
 #include "Utility/Atomic.hpp"
 
 struct FThreadLaunchData
 {
     FThreadEntryFunction EntryFunction;
     void* Data;
+    const TChar* ThreadName = "UnnamedThread";
     TAtomic<bool8> bIsStarted = false;
 };
 
 unsigned __stdcall ThreadEntry(void* Parameter)
 {
     FThreadLaunchData* LaunchData = static_cast<FThreadLaunchData*>(Parameter);
+    RAVEN_PROFILE_THREAD(LaunchData->ThreadName);
 
     // Copy entry function, because launch data will be deleted after thread creation
     const FThreadEntryFunction EntryFunction = LaunchData->EntryFunction;
@@ -47,7 +51,7 @@ int ToWin32Priority(const EThreadPriority Priority)
 FWindowsThread::FWindowsThread(const FThreadDesc& InThreadDesc)
     : ThreadDesc(InThreadDesc)
 {
-    FThreadLaunchData* LaunchData = Memory::New<FThreadLaunchData>(ThreadDesc.EntryFunction, ThreadDesc.Data);
+    FThreadLaunchData* LaunchData = Memory::New<FThreadLaunchData>(ThreadDesc.EntryFunction, ThreadDesc.Data, ThreadDesc.Name);
     ThreadHandle = reinterpret_cast<void*>(_beginthreadex(nullptr, static_cast<unsigned>(ThreadDesc.StackSize), ThreadEntry, LaunchData, CREATE_SUSPENDED, reinterpret_cast<unsigned*>(&ThreadId)));
     RAVEN_CORE_ASSERT(ThreadHandle != nullptr, "Failed to create thread");
 
