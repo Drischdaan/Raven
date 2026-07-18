@@ -2,6 +2,8 @@
 
 #include "Threading/Fiber.hpp"
 
+#include <iostream>
+
 #include "CoreAssertions.hpp"
 
 #include "Profiling/Profiling.hpp"
@@ -49,8 +51,15 @@ void FFiber::Switch(const FFiber& From, const FFiber& To)
 {
     RAVEN_CORE_ASSERT(&From != &To, "Cannot switch to the same fiber");
 
-    RAVEN_PROFILE_FIBER_LEAVE();
+    if (!From.bIsThreadFiber)
+    {
+        RAVEN_PROFILE_FIBER_LEAVE();
+    }
     FPlatformFiber::Swap(From.PlatformFiber, To.PlatformFiber);
+    if (!From.bIsThreadFiber)
+    {
+        RAVEN_PROFILE_FIBER_ENTER(From.GetName());
+    }
 }
 
 void FFiber::Trampoline(void* Data)

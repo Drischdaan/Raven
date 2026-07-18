@@ -5,6 +5,7 @@ vsxmake2026/
 Engine/Build/Output/
 
 *.slnx
+*.DotSettings.user
 
 .idea/
 .vscode/
