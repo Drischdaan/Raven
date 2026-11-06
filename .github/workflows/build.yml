@@ -1,0 +1,66 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "Build mode (debug, development, shipping)"
+        required: true
+        type: string
+      xmake-version:
+        description: "Version of xmake to use"
+        required: false
+        type: string
+        default: "3.1.2"
+      retention-days:
+        description: "Number of days to retain the build artifact"
+        required: false
+        type: number
+        default: 14
+    outputs:
+      artifact-name:
+        description: "The name of the build artifact"
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+jobs:
+  build:
+    name: Build (${{ inputs.mode }})
+    runs-on: windows-2025-vs2026
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+    env:
+      RAVEN_MODE: ${{ inputs.mode }}
+      RAVEN_PLAT: windows
+      RAVEN_ARCH: x64
+    steps:
+      - name: Validate Mode
+        id: meta
+        shell: pwsh
+        run: |
+          $allowed = @('debug', 'development', 'shipping')
+          if ($allowed -notcontains $env:RAVEN_MODE) {
+            Write-Error "Invalid mode: $env:RAVEN_MODE. Allowed values are: $($allowed -join ', ')"
+            exit 1
+          }
+          "artifact-name=Raven-$env:RAVEN_PLAT-$env:RAVEN_ARCH-$env:RAVEN_MODE" >> $env:GITHUB_OUTPUT
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: ${{ inputs.xmake-version }}
+          actions-cache-folder: .xmake-cache
+          actions-cache-key: ${{ runner.os }}-xmake-${{ inputs.mode }}
+      - name: Configure
+        shell: pwsh
+        run: xmake f -p $env:RAVEN_PLAT -a $env:RAVEN_ARCH -m $env:RAVEN_MODE -y
+      - name: Build
+        shell: pwsh
+        run: xmake build -y -v
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact-name }}
+          path: Binaries/Engine/${{ env.RAVEN_PLAT }}-${{ env.RAVEN_ARCH }}/${{ inputs.mode }}/
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}

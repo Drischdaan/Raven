@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - .github/ISSUE_TEMPLATE/**
+      - Documentation/**
+  pull_request:
+    paths-ignore:
+      - .github/ISSUE_TEMPLATE/**
+      - Documentation/**
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [debug, development, shipping]
+    uses: ./.github/workflows/build.yml
+    with:
+      mode: ${{ matrix.mode }}
