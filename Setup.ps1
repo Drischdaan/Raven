@@ -30,8 +30,26 @@ try {
     $configured = Invoke-Git config --get core.hooksPath
 
     Write-Host "Git hooks configured: core.hooksPath = $configured" -ForegroundColor Green
+
+    if (-not (Get-Command xmake -ErrorAction SilentlyContinue)) {
+        throw 'xmake is not installed or not on PATH. Install it from https://xmake.io'
+    }
+
+    Push-Location $RepoRoot
+    try {
+        & xmake project -k vsxmake2026 ./Engine/Build/
+        if ($LASTEXITCODE -ne 0) {
+            throw "xmake project generation failed with exit code $LASTEXITCODE"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    Write-Host 'Visual Studio project generated in Engine/Build/' -ForegroundColor Green
 }
 catch {
     Write-Host "Setup failed: $_" -ForegroundColor Red
     exit 1
 }
+
