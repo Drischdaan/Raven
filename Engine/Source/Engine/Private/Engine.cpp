@@ -8,6 +8,8 @@
 
 #include "Core/Memory/Memory.hpp"
 
+#include "Platform/Window.hpp"
+
 FEngine* GEngine = nullptr;
 
 void FEngine::Run()
@@ -24,21 +26,32 @@ void FEngine::RequestShutdown()
 
 void FEngine::Start()
 {
+    FWindowSettings WindowSettings = {};
+    Window = MakeShared<FWindow>(WindowSettings);
+    Window->Show();
 }
 
 void FEngine::Loop()
 {
     while (bShouldRun)
     {
-        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+        if (Window->GetWindowState().bIsClosed)
         {
             RequestShutdown();
+        }
+
+        MSG Message;
+        while (PeekMessage(&Message, nullptr, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage(&Message);
+            DispatchMessage(&Message);
         }
     }
 }
 
 void FEngine::Stop()
 {
+    Window.reset();
 }
 
 

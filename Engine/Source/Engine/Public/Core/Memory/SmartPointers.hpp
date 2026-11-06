@@ -5,7 +5,7 @@
 #include <memory>
 #include <type_traits>
 
-#include "Core/Memory.hpp"
+#include "Core/Memory/Memory.hpp"
 
 template <typename T>
 struct TSmartDeleter

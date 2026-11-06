@@ -5,6 +5,9 @@
 #include <atomic>
 
 #include "Core/CoreTypes.hpp"
+#include "Core/Memory/SmartPointers.hpp"
+
+class FWindow;
 
 class RAVEN_API FEngine
 {
@@ -19,6 +22,8 @@ private:
 
 private:
     std::atomic<bool8> bShouldRun = true;
+
+    TSharedPtr<FWindow> Window = nullptr;
 };
 
 extern RAVEN_API FEngine* GEngine;
