@@ -14,4 +14,4 @@ The Raven Engine project follows a strict no-AI generation policy. All code cont
 
 ## 💼 Running CI locally
 
-In order to run the CI pipeline locally, you first need to install [act](https://github.com/nektos/act). Once installed, you can run the [./Scripts/RunCILocally.ps1](./Scripts/RunCILocally.ps1) script. The script will run the CI pipeline for all build modes (debug, development and shipping) on your local machine and will stop if any of the builds fail. Successful build will be stored in the `.act-artifacts` folder.
+In order to run the CI pipeline locally, you first need to install [act](https://github.com/nektos/act). Once installed, you can run the [./Scripts/RunCILocally.ps1](./Scripts/RunCILocally.ps1) script. The script will run the CI pipeline for all build modes (debug, development and shipping) on your local machine and will stop if any of the builds fail. Successful builds will be stored in the `.act-artifacts` folder.
