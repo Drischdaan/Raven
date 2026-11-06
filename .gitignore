@@ -1,0 +1,15 @@
+.xmake/
+
+Binaries/
+Intermediates/
+.deps/
+vsxmake2026/
+Engine/Build/Output/
+
+*.slnx
+*.DotSettings.user
+
+.idea/
+.vscode/
+
+.act-artifacts/
