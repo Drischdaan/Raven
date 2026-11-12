@@ -3,7 +3,6 @@
 #include "Engine.hpp"
 
 #include <cassert>
-#include <print>
 #include <Windows.h>
 
 #include "Core/Memory/Memory.hpp"

@@ -2,7 +2,7 @@
 
 #include "Core/Memory/MemoryResource.hpp"
 
-#include <assert.h>
+#include <cassert>
 
 #include "Core/Memory/Memory.hpp"
 

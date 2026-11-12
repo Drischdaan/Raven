@@ -21,15 +21,16 @@ namespace
 
 FVirtualMemoryArena::FVirtualMemoryArena(const size64 InReserveSize, const size64 InCommitBlockSize)
 {
-    Initialize(InReserveSize, InCommitBlockSize);
+    const FResult Result = Initialize(InReserveSize, InCommitBlockSize);
+    assert(Result.HasValue() && "Unable to initialize memory arena");
 }
 
 FVirtualMemoryArena::FVirtualMemoryArena(FVirtualMemoryArena&& Other) noexcept
     : BasePointer(std::exchange(Other.BasePointer, nullptr)),
-      ReservedSize(std::exchange(Other.ReservedSize, nullptr)),
-      CommittedSize(std::exchange(Other.CommittedSize, nullptr)),
-      CommittedBlockSize(std::exchange(Other.CommittedBlockSize, nullptr)),
-      Offset(std::exchange(Other.Offset, nullptr))
+      ReservedSize(std::exchange(Other.ReservedSize, 0)),
+      CommittedSize(std::exchange(Other.CommittedSize, 0)),
+      CommittedBlockSize(std::exchange(Other.CommittedBlockSize, 0)),
+      Offset(std::exchange(Other.Offset, 0))
 {
 }
 
@@ -44,21 +45,21 @@ FVirtualMemoryArena& FVirtualMemoryArena::operator=(FVirtualMemoryArena&& Other)
     {
         Deinitialize();
         BasePointer = std::exchange(Other.BasePointer, nullptr);
-        ReservedSize = std::exchange(Other.ReservedSize, nullptr);
-        CommittedSize = std::exchange(Other.CommittedSize, nullptr);
-        CommittedBlockSize = std::exchange(Other.CommittedBlockSize, nullptr);
-        Offset = std::exchange(Other.Offset, nullptr);
+        ReservedSize = std::exchange(Other.ReservedSize, 0);
+        CommittedSize = std::exchange(Other.CommittedSize, 0);
+        CommittedBlockSize = std::exchange(Other.CommittedBlockSize, 0);
+        Offset = std::exchange(Other.Offset, 0);
     }
     return *this;
 }
 
-bool8 FVirtualMemoryArena::Initialize(const size64 InReserveSize, const size64 InCommitBlockSize)
+FResult FVirtualMemoryArena::Initialize(const size64 InReserveSize, const size64 InCommitBlockSize)
 {
     Deinitialize();
 
     if (InReserveSize == 0)
     {
-        return false;
+        return ERROR("Reserved size cannot be zero");
     }
 
     const size64 PageSize = VirtualMemory::GetPageSize();
@@ -68,7 +69,7 @@ bool8 FVirtualMemoryArena::Initialize(const size64 InReserveSize, const size64 I
     void* Reserved = VirtualMemory::Reserve(AlignedReserveSize);
     if (Reserved == nullptr)
     {
-        return false;
+        return ERROR("Unable to reserve memory");
     }
 
     BasePointer = static_cast<uint8_t*>(Reserved);
@@ -76,7 +77,7 @@ bool8 FVirtualMemoryArena::Initialize(const size64 InReserveSize, const size64 I
     CommittedBlockSize = AlignUp(InCommitBlockSize == 0 ? DefaultCommitBlockSize : InCommitBlockSize, PageSize);
     CommittedSize = 0;
     Offset = 0;
-    return true;
+    return OK();
 }
 
 void FVirtualMemoryArena::Deinitialize()

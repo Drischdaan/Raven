@@ -5,6 +5,7 @@
 #include <type_traits>
 
 #include "Core/CoreTypes.hpp"
+#include "Core/Utility/Result.hpp"
 
 /**
  * @note The virtual memory arena never calls object destructors. Use it for trivially destructible types, or destroy objects manually before resetting/popping past them. 
@@ -25,7 +26,7 @@ public:
     FVirtualMemoryArena& operator=(FVirtualMemoryArena&& Other) noexcept;
 
 public:
-    bool8 Initialize(size64 InReserveSize, size64 InCommitBlockSize = DefaultCommitBlockSize);
+    FResult Initialize(size64 InReserveSize, size64 InCommitBlockSize = DefaultCommitBlockSize);
     void Deinitialize();
 
     [[nodiscard]] void* Allocate(size64 Size, size64 Alignment = 16);
