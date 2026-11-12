@@ -1,0 +1,9 @@
+﻿// Raven Storm Studio @ 2026. All Rights Reserved.
+
+#pragma once
+
+#define RAVEN_CONCAT_INNER(A, B) A##B
+#define RAVEN_CONCAT(A, B) RAVEN_CONCAT_INNER(A, B)
+
+#define RAVEN_UNIQUE_VARIABLE_INNER(A, B) RAVEN_CONCAT(A, B)
+#define RAVEN_UNIQUE_VARIABLE(A) RAVEN_UNIQUE_VARIABLE_INNER(A, __LINE__)
