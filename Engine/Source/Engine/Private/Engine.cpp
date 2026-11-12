@@ -7,6 +7,9 @@
 #include <Windows.h>
 
 #include "Core/Memory/Memory.hpp"
+#include "Core/Memory/MemoryResource.hpp"
+#include "Core/Memory/MemoryTag.hpp"
+#include "Core/Memory/Containers/String.hpp"
 
 #include "Platform/Window.hpp"
 
@@ -26,6 +29,24 @@ void FEngine::RequestShutdown()
 
 void FEngine::Start()
 {
+    {
+        RAVEN_MEMORY_SCOPE(Strings);
+
+        FString Test = "Hello world, this string is long enough to hit the heap";
+
+        const FMemoryTagStats& StringStats = MemoryTag::GetMemoryTagStats(EMemoryTag::Strings);
+        std::println("Allocated Bytes: {}", StringStats.AllocatedBytes.load());
+        std::println("Peak Allocated Bytes: {}", StringStats.PeakAllocatedBytes.load());
+        std::println("Allocation Count: {}", StringStats.AllocationCount.load());
+        std::println("Deallocation Count: {}", StringStats.DeallocationCount.load());
+    }
+
+    const FMemoryTagStats& StringStats = MemoryTag::GetMemoryTagStats(EMemoryTag::Strings);
+    std::println("Allocated Bytes: {}", StringStats.AllocatedBytes.load());
+    std::println("Peak Allocated Bytes: {}", StringStats.PeakAllocatedBytes.load());
+    std::println("Allocation Count: {}", StringStats.AllocationCount.load());
+    std::println("Deallocation Count: {}", StringStats.DeallocationCount.load());
+
     FWindowSettings WindowSettings = {};
     Window = MakeShared<FWindow>(WindowSettings);
     Window->Show();
@@ -61,9 +82,12 @@ void StartupEngine()
     {
         return;
     }
+    RAVEN_MEMORY_SCOPE(Core);
+    FMemory::Initialize();
     GEngine = FMemory::NewObject<FEngine>();
     GEngine->Run();
     FMemory::DeleteObject(GEngine);
+    FMemory::Deinitialize();
 }
 
 FEngine* GetEngine()
