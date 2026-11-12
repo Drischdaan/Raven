@@ -60,6 +60,6 @@ public:
 
 using FResult = TResult<void>;
 
-#define OK(...) FResult(__VA_ARGS__)
-#define ERROR(...) MakeRavenError(__VA_ARGS__)
-#define PLATFORM_ERROR(...) MakeRavenPlatformError(__VA_ARGS__)
+#define RESULT_OK(...) __VA_ARGS__
+#define RESULT_ERROR(...) MakeRavenError(__VA_ARGS__)
+#define RESULT_PLATFORM_ERROR(...) MakeRavenPlatformError(__VA_ARGS__)
