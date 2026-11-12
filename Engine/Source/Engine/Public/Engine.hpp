@@ -7,6 +7,7 @@
 #include "Core/CoreTypes.hpp"
 #include "Core/Memory/SmartPointers.hpp"
 
+class IGfxDevice;
 class FWindow;
 
 class RAVEN_API FEngine
@@ -24,6 +25,7 @@ private:
     std::atomic<bool8> bShouldRun = true;
 
     TSharedPtr<FWindow> Window = nullptr;
+    TSharedPtr<IGfxDevice> GfxDevice = nullptr;
 };
 
 extern RAVEN_API FEngine* GEngine;

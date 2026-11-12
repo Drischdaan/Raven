@@ -3,12 +3,14 @@
 #include "Engine.hpp"
 
 #include <cassert>
+#include <print>
 #include <Windows.h>
 
 #include "Core/Memory/Memory.hpp"
 #include "Core/Memory/MemoryResource.hpp"
 #include "Core/Memory/MemoryTag.hpp"
 #include "Core/Memory/Containers/String.hpp"
+#include "Graphics/GfxDevice.hpp"
 
 #include "Platform/Window.hpp"
 
@@ -31,6 +33,21 @@ void FEngine::Start()
     FWindowSettings WindowSettings = {};
     Window = MakeShared<FWindow>(WindowSettings);
     Window->Show();
+
+    constexpr FGfxDeviceDesc GfxDeviceDesc = {
+        .Backend = EGfxBackend::D3D12,
+        .bEnableDebugLayer = true,
+        .bEnableGpuValidation = true,
+        .bEnableCrashDiagnostics = true,
+        .FramesInFlight = 2,
+    };
+    TResult<TSharedPtr<IGfxDevice>> DeviceResult = CreateGfxDevice(GfxDeviceDesc);
+    if (DeviceResult.HasError())
+    {
+        std::println("Error: {}", DeviceResult.GetError().Message);
+        return;
+    }
+    GfxDevice = DeviceResult.GetValue();
 }
 
 void FEngine::Loop()
@@ -53,6 +70,7 @@ void FEngine::Loop()
 
 void FEngine::Stop()
 {
+    GfxDevice.reset();
     Window.reset();
 }
 
