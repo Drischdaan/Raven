@@ -34,8 +34,9 @@ void FEngine::Start()
     Window = MakeShared<FWindow>(WindowSettings);
     Window->Show();
 
-    constexpr FGfxDeviceDesc GfxDeviceDesc = {
+    const FGfxDeviceDesc GfxDeviceDesc = {
         .Backend = EGfxBackend::D3D12,
+        .Window = Window,
         .bEnableDebugLayer = true,
         .bEnableGpuValidation = true,
         .bEnableCrashDiagnostics = true,

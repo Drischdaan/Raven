@@ -9,6 +9,7 @@
 #include "Core/Memory/Containers/String.hpp"
 #include "Core/Utility/Result.hpp"
 
+class FWindow;
 struct FGfxShaderDesc;
 struct FGfxGraphicsPipelineDesc;
 struct FGfxComputePipelineDesc;
@@ -27,6 +28,7 @@ struct FGfxSubmitDesc
 struct RAVEN_API FGfxDeviceDesc
 {
     EGfxBackend Backend = EGfxBackend::D3D12;
+    TSharedPtr<FWindow> Window = nullptr;
     bool8 bEnableDebugLayer = false;
     bool8 bEnableGpuValidation = false;
     bool8 bEnableCrashDiagnostics = true;
@@ -76,15 +78,15 @@ public:
     //
     // virtual TResult<TUniquePtr<IGfxCommandList>> CreateSwapchain(const FGfxSwapchainDesc& SwapchainDesc) = 0;
     //
-    // [[nodiscard]] virtual IGfxCommandList* AcquireCommandList(EGfxQueueType QueueType) = 0;
-    // virtual FGfxSyncPoint Submit(const FGfxSubmitDesc& SubmitDesc) = 0;
-    // virtual void WaitForSyncPoint(FGfxSyncPoint SyncPoint) = 0;
-    // [[nodiscard]] virtual bool8 IsComplete(FGfxSyncPoint SyncPoint) const = 0;
-    // virtual void WaitForIdle() = 0;
-    //
-    // virtual void BeginFrame() = 0;
-    // virtual void EndFrame() = 0;
-    // [[nodiscard]] virtual uint64 GetFrameIndex() const = 0;
+    [[nodiscard]] virtual IGfxCommandList* AcquireCommandList(EGfxQueueType QueueType) = 0;
+    virtual FGfxSyncPoint Submit(const FGfxSubmitDesc& SubmitDesc) = 0;
+    virtual void WaitForSyncPoint(FGfxSyncPoint SyncPoint) = 0;
+    [[nodiscard]] virtual bool8 IsComplete(FGfxSyncPoint SyncPoint) const = 0;
+    virtual void WaitForIdle() = 0;
+
+    virtual void BeginFrame() = 0;
+    virtual void EndFrame() = 0;
+    [[nodiscard]] virtual uint64 GetFrameIndex() const = 0;
 };
 
 [[nodiscard]] RAVEN_API TResult<TSharedPtr<IGfxDevice>> CreateGfxDevice(const FGfxDeviceDesc& DeviceDesc);
