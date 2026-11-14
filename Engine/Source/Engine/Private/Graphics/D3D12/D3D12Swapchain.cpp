@@ -2,8 +2,6 @@
 
 #include "Graphics/D3D12/D3D12Swapchain.hpp"
 
-#include <print>
-
 #include "Graphics/D3D12/D3D12GfxDevice.hpp"
 #include "Platform/Window.hpp"
 
@@ -87,7 +85,7 @@ FResult FD3D12GfxSwapchain::Initialize(const FGfxSwapchainDesc& SwapchainDesc)
         const FResult HdrResult = SetHdr(true);
         if (HdrResult.HasError())
         {
-            std::println("HDR unavailable, using SDR: {}", HdrResult.GetError().Message);
+            RAVEN_LOG(LogD3D12, Warning, "HDR unavailable, using SDR: {}", HdrResult.GetError().Message);
         }
     }
     return RESULT_OK_EMPTY();

@@ -6,11 +6,11 @@
 #include <print>
 #include <Windows.h>
 
+#include "Core/CoreLog.hpp"
+#include "Core/Logging/Log.hpp"
 #include "Core/Memory/Memory.hpp"
 #include "Core/Memory/MemoryResource.hpp"
 #include "Core/Memory/MemoryTag.hpp"
-#include "Graphics/GfxDevice.hpp"
-
 #include "Platform/Window.hpp"
 
 FEngine* GEngine = nullptr;
@@ -20,7 +20,7 @@ void FEngine::Run()
     const FResult Result = Start();
     if (Result.HasError())
     {
-        std::println("Error: {}", Result.GetError().Message);
+        RAVEN_LOG_ERROR(LogCore, Result.GetError());
         Stop();
         return;
     }
@@ -71,12 +71,15 @@ void StartupEngine()
     {
         return;
     }
+    FLog::Initialize();
+    RAVEN_LOG(LogCore, Info, "Raven starting ({})", RAVEN_MODE);
     RAVEN_MEMORY_SCOPE(Core);
     FMemory::Initialize();
     GEngine = FMemory::NewObject<FEngine>();
     GEngine->Run();
     FMemory::DeleteObject(GEngine);
     FMemory::Deinitialize();
+    FLog::Shutdown();
 }
 
 FEngine* GetEngine()
