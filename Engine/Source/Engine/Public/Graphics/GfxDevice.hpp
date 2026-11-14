@@ -60,15 +60,15 @@ public:
     // virtual TResult<FGfxTextureViewHandle> CreateTexture(FGfxTextureHandle TextureHandle, const FGfxTextureViewDesc& TextureViewDesc) = 0;
     // virtual FGfxSamplerHandle GetOrCreateSampler(const FGfxSamplerDesc& SamplerDesc) = 0;
     //
-    // virtual void DestroyBuffer(FGfxBufferHandle BufferHandle) = 0;
-    // virtual void DestroyTexture(FGfxTextureHandle TextureHandle) = 0;
-    // virtual void DestroyTextureView(FGfxTextureViewHandle TextureViewHandle) = 0;
-    //
-    // [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxBufferHandle BufferHandle, EGfxViewType ViewType = EGfxViewType::ShaderResource) const = 0;
-    // [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxTextureHandle TextureHandle, EGfxViewType ViewType = EGfxViewType::ShaderResource) const = 0;
-    // [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxTextureViewHandle TextureViewHandle) const = 0;
-    // [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxSamplerHandle SamplerHandle) const = 0;
-    //
+    virtual void DestroyBuffer(FGfxBufferHandle BufferHandle) = 0;
+    virtual void DestroyTexture(FGfxTextureHandle TextureHandle) = 0;
+    virtual void DestroyTextureView(FGfxTextureViewHandle TextureViewHandle) = 0;
+
+    [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxBufferHandle BufferHandle, EGfxViewType ViewType = EGfxViewType::ShaderResource) const = 0;
+    [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxTextureHandle TextureHandle, EGfxViewType ViewType = EGfxViewType::ShaderResource) const = 0;
+    [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxTextureViewHandle TextureViewHandle) const = 0;
+    [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxSamplerHandle SamplerHandle) const = 0;
+
     // [[nodiscard]] virtual TSpan<byte8> Map(FGfxBufferHandle BufferHandle) = 0;
     // [[nodiscard]] virtual FGfxTextureCopyLayout GetCopyLayout(FGfxTextureHandle TextureHandle, uint32 Subresource) const = 0;
     //

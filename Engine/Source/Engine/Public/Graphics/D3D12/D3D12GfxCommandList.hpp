@@ -59,4 +59,5 @@ private:
     TComPtr<ID3D12CommandAllocator> Allocator;
 
     bool8 bIsRecording = false;
+    bool8 bIsComputePipelineBound = false;
 };

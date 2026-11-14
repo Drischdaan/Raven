@@ -2,6 +2,10 @@
 
 #include "Graphics/D3D12/D3D12GfxCommandList.hpp"
 
+#include <print>
+
+#include "Graphics/D3D12/D3D12GfxDevice.hpp"
+
 FD3D12GfxCommandList::FD3D12GfxCommandList(FD3D12GfxDevice& InDevice, const EGfxQueueType InQueueType, TComPtr<ID3D12GraphicsCommandList10> InCommandList)
     : Device(&InDevice), QueueType(InQueueType), CommandList(std::move(InCommandList))
 {
@@ -12,6 +16,25 @@ void FD3D12GfxCommandList::Begin(TComPtr<ID3D12CommandAllocator> InAllocator)
     Allocator = std::move(InAllocator);
     CommandList->Reset(Allocator.Get(), nullptr);
     bIsRecording = true;
+    bIsComputePipelineBound = QueueType == EGfxQueueType::Compute;
+
+    if (QueueType == EGfxQueueType::Copy)
+    {
+        return;
+    }
+
+    ID3D12DescriptorHeap* const Heaps[] = {
+        Device->GetDescriptorHeap(ED3D12DescriptorHeapType::Resource).GetNative(),
+        Device->GetDescriptorHeap(ED3D12DescriptorHeapType::Sampler).GetNative(),
+    };
+    CommandList->SetDescriptorHeaps(std::size(Heaps), Heaps);
+
+    ID3D12RootSignature* RootSignature = Device->GetGlobalRootSignature();
+    if (QueueType == EGfxQueueType::Graphics)
+    {
+        CommandList->SetGraphicsRootSignature(RootSignature);
+    }
+    CommandList->SetComputeRootSignature(RootSignature);
 }
 
 void FD3D12GfxCommandList::Close()
@@ -98,8 +121,30 @@ void FD3D12GfxCommandList::SetScissor(const FGfxRect& Scissor)
     CommandList->RSSetScissorRects(1, &NativeRect);
 }
 
-void FD3D12GfxCommandList::SetPushConstants(TSpan<const byte8> Data, uint32 Offset)
+void FD3D12GfxCommandList::SetPushConstants(const TSpan<const byte8> Data, uint32 Offset)
 {
+    if (Data.size() % sizeof(uint32) != 0 || Offset % sizeof(uint32) != 0 || Offset + Data.size() > GfxMaxPushConstantsSize)
+    {
+        std::println("SetPushConstants: size ({}) and offset ({}) must be 4-byte aligned and fit in {} bytes", Data.size(), Offset, GfxMaxPushConstantsSize);
+        return;
+    }
+    if (QueueType == EGfxQueueType::Copy)
+    {
+        std::println("SetPushConstants: not allowed on copy command lists");
+        return;
+    }
+
+    constexpr uint32 RootIndex = static_cast<uint32>(ED3D12RootParameter::PushConstants);
+    const uint32 ValueCount = static_cast<uint32>(Data.size() / sizeof(uint32));
+    const uint32 DestinationOffset = Offset / sizeof(uint32);
+    if (bIsComputePipelineBound)
+    {
+        CommandList->SetComputeRoot32BitConstants(RootIndex, ValueCount, Data.data(), DestinationOffset);
+    }
+    else
+    {
+        CommandList->SetGraphicsRoot32BitConstants(RootIndex, ValueCount, Data.data(), DestinationOffset);
+    }
 }
 
 void FD3D12GfxCommandList::SetConstantBuffer(EGfxConstantSlot Slot, FGfxBufferRange Range)

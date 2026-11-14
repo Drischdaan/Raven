@@ -2,12 +2,16 @@
 
 #pragma once
 
+#include "D3D12Bindless.hpp"
 #include "D3D12CommandListPool.hpp"
 #include "D3D12DeferredDeletionQueue.hpp"
+#include "D3D12DescriptorHeap.hpp"
 #include "D3D12GfxQueue.hpp"
+#include "D3D12GfxResources.hpp"
 #include "D3D12GfxSync.hpp"
 #include "D3D12Include.hpp"
 #include "Graphics/GfxDevice.hpp"
+#include "Graphics/GfxResourcePool.hpp"
 
 class RAVEN_API FD3D12GfxDevice : public IGfxDevice
 {
@@ -25,14 +29,23 @@ public:
     // TResult<FGfxTextureViewHandle> CreateTexture(FGfxTextureHandle TextureHandle, const FGfxTextureViewDesc& TextureViewDesc) override;
     // FGfxSamplerHandle GetOrCreateSampler(const FGfxSamplerDesc& SamplerDesc) override;
     //
-    // void DestroyBuffer(FGfxBufferHandle BufferHandle) override;
-    // void DestroyTexture(FGfxTextureHandle TextureHandle) override;
-    // void DestroyTextureView(FGfxTextureViewHandle TextureViewHandle) override;
-    //
-    // [[nodiscard]] uint32 GetBindlessIndex(FGfxBufferHandle BufferHandle, EGfxViewType ViewType) const override;
-    // [[nodiscard]] uint32 GetBindlessIndex(FGfxTextureHandle TextureHandle, EGfxViewType ViewType) const override;
-    // [[nodiscard]] uint32 GetBindlessIndex(FGfxTextureViewHandle TextureViewHandle) const override;
-    // [[nodiscard]] uint32 GetBindlessIndex(FGfxSamplerHandle SamplerHandle) const override;
+    void DestroyBuffer(FGfxBufferHandle BufferHandle) override;
+    void DestroyTexture(FGfxTextureHandle TextureHandle) override;
+    void DestroyTextureView(FGfxTextureViewHandle TextureViewHandle) override;
+
+    [[nodiscard]] uint32 GetBindlessIndex(FGfxBufferHandle BufferHandle, EGfxViewType ViewType) const override;
+    [[nodiscard]] uint32 GetBindlessIndex(FGfxTextureHandle TextureHandle, EGfxViewType ViewType) const override;
+    [[nodiscard]] uint32 GetBindlessIndex(FGfxTextureViewHandle TextureViewHandle) const override;
+    [[nodiscard]] uint32 GetBindlessIndex(FGfxSamplerHandle SamplerHandle) const override;
+    [[nodiscard]] FD3D12DescriptorHeap& GetDescriptorHeap(ED3D12DescriptorHeapType HeapType);
+    [[nodiscard]] ID3D12RootSignature* GetGlobalRootSignature() const;
+
+    [[nodiscard]] FD3D12Buffer* GetBuffer(FGfxBufferHandle BufferHandle);
+    [[nodiscard]] FD3D12Texture* GetTexture(FGfxTextureHandle TextureHandle);
+    [[nodiscard]] FD3D12TextureView* GetTextureView(FGfxTextureViewHandle TextureViewHandle);
+    [[nodiscard]] FD3D12Pipeline* GetPipeline(FGfxPipelineHandle PipelineHandle);
+
+    void FreeDescriptorDeferred(ED3D12DescriptorHeapType HeapType, uint32 Index);
     //
     // [[nodiscard]] TSpan<byte8> Map(FGfxBufferHandle BufferHandle) override;
     // [[nodiscard]] FGfxTextureCopyLayout GetCopyLayout(FGfxTextureHandle TextureHandle, uint32 Subresource) const override;
@@ -62,9 +75,14 @@ private:
     FResult CheckFeatureSupport();
     FResult CreateQueues();
     void CreateCommandListPools();
+    FResult CreateDescriptorHeaps();
+    void WriteDefaultDescriptors();
+    FResult CreateGlobalRootSignature();
 
     [[nodiscard]] FD3D12QueueFenceValues CaptureLastSubmittedValues() const;
     void WaitForFenceValues(const FD3D12QueueFenceValues& FenceValues);
+
+    void ReportAndReleaseLeakedResources();
 
 private:
     bool8 bIsInitialized = false;
@@ -87,4 +105,14 @@ private:
     FD3D12DeferredDeletionQueue DeletionQueue;
 
     FD3D12CommandListPool CommandListPools[static_cast<uint8>(EGfxQueueType::Count)];
+
+    FD3D12DescriptorHeap DescriptorHeaps[static_cast<uint8>(ED3D12DescriptorHeapType::Count)];
+    TComPtr<ID3D12RootSignature> GlobalRootSignature;
+
+    TGfxResourcePool<FGfxBufferHandle, FD3D12Buffer> Buffers;
+    TGfxResourcePool<FGfxTextureHandle, FD3D12Texture> Textures;
+    TGfxResourcePool<FGfxTextureViewHandle, FD3D12TextureView> TextureViews;
+    TGfxResourcePool<FGfxSamplerHandle, FD3D12Sampler, 2048> Samplers;
+    TGfxResourcePool<FGfxShaderHandle, FD3D12Shader> Shaders;
+    TGfxResourcePool<FGfxPipelineHandle, FD3D12Pipeline> Pipelines;
 };
