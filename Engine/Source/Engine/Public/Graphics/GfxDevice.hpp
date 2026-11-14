@@ -33,7 +33,7 @@ struct RAVEN_API FGfxDeviceDesc
     bool8 bEnableDebugLayer = false;
     bool8 bEnableGpuValidation = false;
     bool8 bEnableCrashDiagnostics = true;
-    uint32 FramesInFlight = 2;
+    uint32 FramesInFlight = 3;
 };
 
 struct RAVEN_API FGfxDeviceCapabilities

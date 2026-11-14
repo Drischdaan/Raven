@@ -2,8 +2,6 @@
 
 #include "Graphics/D3D12/D3D12GfxCommandList.hpp"
 
-#include <print>
-
 #include "Graphics/D3D12/D3D12Conversions.hpp"
 #include "Graphics/D3D12/D3D12GfxDevice.hpp"
 
@@ -149,7 +147,7 @@ void FD3D12GfxCommandList::Close()
     }
     if (bIsInRenderPass)
     {
-        std::println("Command list closed inside a render pass; ending it");
+        RAVEN_LOG(LogD3D12, Warning, "Command list closed inside a render pass; ending it");
         CommandList->EndRenderPass();
         bIsInRenderPass = false;
     }
@@ -212,7 +210,7 @@ void FD3D12GfxCommandList::Barrier(const TSpan<const FGfxGlobalBarrier> GlobalBa
         const FD3D12Buffer* Buffer = Device->GetBuffer(Barrier.BufferHandle);
         if (Buffer == nullptr)
         {
-            std::println("Barrier: invalid or stale buffer handle");
+            RAVEN_LOG(LogD3D12, Error, "Barrier: invalid or stale buffer handle");
             continue;
         }
         BufferBarrierScratch.push_back(D3D12_BUFFER_BARRIER{
@@ -231,7 +229,7 @@ void FD3D12GfxCommandList::Barrier(const TSpan<const FGfxGlobalBarrier> GlobalBa
         const FD3D12Texture* Texture = Device->GetTexture(Barrier.TextureHandle);
         if (Texture == nullptr)
         {
-            std::println("Barrier: invalid or stale texture handle");
+            RAVEN_LOG(LogD3D12, Error, "Barrier: invalid or stale texture handle");
             continue;
         }
 
@@ -245,7 +243,7 @@ void FD3D12GfxCommandList::Barrier(const TSpan<const FGfxGlobalBarrier> GlobalBa
             TResult<FGfxSubresourceRange> Range = ResolveSubresourceRange(Texture->Desc, Barrier.Range);
             if (Range.HasError())
             {
-                std::println("Barrier: {}", Range.GetError().Message);
+                RAVEN_LOG(LogD3D12, Error, "Barrier: {}", Range.GetError().Message);
                 continue;
             }
             Subresources = ToD3D12BarrierRange(Texture->Desc, Range.GetValue());
@@ -297,17 +295,17 @@ void FD3D12GfxCommandList::BeginRendering(const FGfxRenderingDesc& RenderingDesc
 {
     if (QueueType != EGfxQueueType::Graphics)
     {
-        std::println("BeginRendering: only valid on graphics command lists");
+        RAVEN_LOG(LogD3D12, Error, "BeginRendering: only valid on graphics command lists");
         return;
     }
     if (bIsInRenderPass)
     {
-        std::println("BeginRendering: already inside a render pass");
+        RAVEN_LOG(LogD3D12, Error, "BeginRendering: already inside a render pass");
         return;
     }
     if (RenderingDesc.RenderTargets.size() > GfxMaxRenderTargets)
     {
-        std::println("BeginRendering: at most {} render targets", GfxMaxRenderTargets);
+        RAVEN_LOG(LogD3D12, Error, "BeginRendering: at most {} render targets", GfxMaxRenderTargets);
         return;
     }
     if (!EnsureScratchDescriptors())
@@ -327,7 +325,7 @@ void FD3D12GfxCommandList::BeginRendering(const FGfxRenderingDesc& RenderingDesc
         const FD3D12Texture* Texture = Device->GetTexture(Attachment.TextureHandle);
         if (Texture == nullptr)
         {
-            std::println("BeginRendering: invalid or stale render target handle");
+            RAVEN_LOG(LogD3D12, Error, "BeginRendering: invalid or stale render target handle");
             return;
         }
         const DXGI_FORMAT Format = GetD3D12FormatInfo(Texture->Desc.Format).ViewFormat;
@@ -356,7 +354,7 @@ void FD3D12GfxCommandList::BeginRendering(const FGfxRenderingDesc& RenderingDesc
         const FD3D12Texture* Texture = Device->GetTexture(Attachment.TextureHandle);
         if (Texture == nullptr)
         {
-            std::println("BeginRendering: invalid or stale depth stencil handle");
+            RAVEN_LOG(LogD3D12, Error, "BeginRendering: invalid or stale depth stencil handle");
             return;
         }
         const FD3D12FormatInfo FormatInfo = GetD3D12FormatInfo(Texture->Desc.Format);
@@ -411,7 +409,7 @@ void FD3D12GfxCommandList::EndRendering()
 {
     if (!bIsInRenderPass)
     {
-        std::println("EndRendering: no render pass is active");
+        RAVEN_LOG(LogD3D12, Error, "EndRendering: no render pass is active");
         return;
     }
     CommandList->EndRenderPass();
@@ -423,17 +421,17 @@ void FD3D12GfxCommandList::SetPipeline(const FGfxPipelineHandle PipelineHandle)
     const FD3D12Pipeline* Pipeline = Device->GetPipeline(PipelineHandle);
     if (Pipeline == nullptr)
     {
-        std::println("SetPipeline: invalid or stale pipeline handle");
+        RAVEN_LOG(LogD3D12, Error, "SetPipeline: invalid or stale pipeline handle");
         return;
     }
     if (QueueType == EGfxQueueType::Copy)
     {
-        std::println("SetPipeline: not allowed on copy command lists");
+        RAVEN_LOG(LogD3D12, Error, "SetPipeline: not allowed on copy command lists");
         return;
     }
     if (Pipeline->Type != ED3D12PipelineType::Compute && QueueType != EGfxQueueType::Graphics)
     {
-        std::println("SetPipeline: graphics pipelines need a graphics command list");
+        RAVEN_LOG(LogD3D12, Error, "SetPipeline: graphics pipelines need a graphics command list");
         return;
     }
 
@@ -473,12 +471,12 @@ void FD3D12GfxCommandList::SetPushConstants(const TSpan<const byte8> Data, uint3
 {
     if (Data.size() % sizeof(uint32) != 0 || Offset % sizeof(uint32) != 0 || Offset + Data.size() > GfxMaxPushConstantsSize)
     {
-        std::println("SetPushConstants: size ({}) and offset ({}) must be 4-byte aligned and fit in {} bytes", Data.size(), Offset, GfxMaxPushConstantsSize);
+        RAVEN_LOG(LogD3D12, Error, "SetPushConstants: size ({}) and offset ({}) must be 4-byte aligned and fit in {} bytes", Data.size(), Offset, GfxMaxPushConstantsSize);
         return;
     }
     if (QueueType == EGfxQueueType::Copy)
     {
-        std::println("SetPushConstants: not allowed on copy command lists");
+        RAVEN_LOG(LogD3D12, Error, "SetPushConstants: not allowed on copy command lists");
         return;
     }
 
@@ -499,18 +497,18 @@ void FD3D12GfxCommandList::SetConstantBuffer(const EGfxConstantSlot Slot, const 
 {
     if (QueueType == EGfxQueueType::Copy)
     {
-        std::println("SetConstantBuffer: not allowed on copy command lists");
+        RAVEN_LOG(LogD3D12, Error, "SetConstantBuffer: not allowed on copy command lists");
         return;
     }
     const FD3D12Buffer* Buffer = Device->GetBuffer(Range.BufferHandle);
     if (Buffer == nullptr || Range.Offset >= Buffer->Desc.Size)
     {
-        std::println("SetConstantBuffer: invalid buffer handle or offset");
+        RAVEN_LOG(LogD3D12, Error, "SetConstantBuffer: invalid buffer handle or offset");
         return;
     }
     if (Range.Offset % D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT != 0)
     {
-        std::println("SetConstantBuffer: offset must be a multiple of 256");
+        RAVEN_LOG(LogD3D12, Error, "SetConstantBuffer: offset must be a multiple of 256");
         return;
     }
 
@@ -531,7 +529,7 @@ void FD3D12GfxCommandList::SetIndexBuffer(const FGfxBufferHandle IndexBufferHand
     const FD3D12Buffer* Buffer = Device->GetBuffer(IndexBufferHandle);
     if (Buffer == nullptr || Offset >= Buffer->Desc.Size)
     {
-        std::println("SetIndexBuffer: invalid buffer handle or offset");
+        RAVEN_LOG(LogD3D12, Error, "SetIndexBuffer: invalid buffer handle or offset");
         return;
     }
     const D3D12_INDEX_BUFFER_VIEW View = {
@@ -558,13 +556,13 @@ void FD3D12GfxCommandList::DrawIndexedIndirect(const FGfxBufferHandle ArgumentsB
     const FD3D12Buffer* Arguments = Device->GetBuffer(ArgumentsBufferHandle);
     if (Arguments == nullptr)
     {
-        std::println("DrawIndexedIndirect: invalid or stale arguments buffer");
+        RAVEN_LOG(LogD3D12, Error, "DrawIndexedIndirect: invalid or stale arguments buffer");
         return;
     }
     const FD3D12Buffer* Count = CountBufferHandle.IsValid() ? Device->GetBuffer(CountBufferHandle) : nullptr;
     if (CountBufferHandle.IsValid() && Count == nullptr)
     {
-        std::println("DrawIndexedIndirect: invalid or stale count buffer");
+        RAVEN_LOG(LogD3D12, Error, "DrawIndexedIndirect: invalid or stale count buffer");
         return;
     }
     CommandList->ExecuteIndirect(Device->GetDrawIndexedSignature(), MaxCount, Arguments->Resource.Get(), ArgumentsOffset, Count != nullptr ? Count->Resource.Get() : nullptr, CountOffset);
@@ -580,7 +578,7 @@ void FD3D12GfxCommandList::DispatchIndirect(const FGfxBufferHandle ArgumentsBuff
     const FD3D12Buffer* Arguments = Device->GetBuffer(ArgumentsBufferHandle);
     if (Arguments == nullptr)
     {
-        std::println("DispatchIndirect: invalid or stale arguments buffer");
+        RAVEN_LOG(LogD3D12, Error, "DispatchIndirect: invalid or stale arguments buffer");
         return;
     }
     CommandList->ExecuteIndirect(Device->GetDispatchSignature(), 1, Arguments->Resource.Get(), ArgumentsOffset, nullptr, 0);
@@ -598,12 +596,12 @@ void FD3D12GfxCommandList::CopyBuffer(const FGfxBufferHandle DestinationBufferHa
     const FD3D12Buffer* Source = Device->GetBuffer(SourceBufferHandle);
     if (Destination == nullptr || Source == nullptr)
     {
-        std::println("CopyBuffer: invalid or stale buffer handle");
+        RAVEN_LOG(LogD3D12, Error, "CopyBuffer: invalid or stale buffer handle");
         return;
     }
     if (DestinationOffset + Size > Destination->Desc.Size || SourceOffset + Size > Source->Desc.Size)
     {
-        std::println("CopyBuffer: range out of bounds");
+        RAVEN_LOG(LogD3D12, Error, "CopyBuffer: range out of bounds");
         return;
     }
     CommandList->CopyBufferRegion(Destination->Resource.Get(), DestinationOffset, Source->Resource.Get(), SourceOffset, Size);
@@ -615,12 +613,12 @@ void FD3D12GfxCommandList::CopyBufferToTexture(const FGfxTextureHandle Destinati
     const FD3D12Buffer* Source = Device->GetBuffer(SourceBufferHandle);
     if (Destination == nullptr || Source == nullptr)
     {
-        std::println("CopyBufferToTexture: invalid or stale handle");
+        RAVEN_LOG(LogD3D12, Error, "CopyBufferToTexture: invalid or stale handle");
         return;
     }
     if (SourceOffset % D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT != 0)
     {
-        std::println("CopyBufferToTexture: source offset must be a multiple of 512");
+        RAVEN_LOG(LogD3D12, Error, "CopyBufferToTexture: source offset must be a multiple of 512");
         return;
     }
 
@@ -629,7 +627,7 @@ void FD3D12GfxCommandList::CopyBufferToTexture(const FGfxTextureHandle Destinati
     Device->GetNativeDevice()->GetCopyableFootprints1(&Destination->NativeDesc, Subresource, 1, SourceOffset, &Footprint, nullptr, nullptr, &TotalSize);
     if (TotalSize == UINT64_MAX || SourceOffset + TotalSize > Source->Desc.Size)
     {
-        std::println("CopyBufferToTexture: invalid subresource or source buffer too small");
+        RAVEN_LOG(LogD3D12, Error, "CopyBufferToTexture: invalid subresource or source buffer too small");
         return;
     }
 
@@ -652,7 +650,7 @@ void FD3D12GfxCommandList::CopyTexture(const FGfxTextureHandle DestinationTextur
     const FD3D12Texture* Source = Device->GetTexture(SourceTextureHandle);
     if (Destination == nullptr || Source == nullptr)
     {
-        std::println("CopyTexture: invalid or stale texture handle");
+        RAVEN_LOG(LogD3D12, Error, "CopyTexture: invalid or stale texture handle");
         return;
     }
     CommandList->CopyResource(Destination->Resource.Get(), Source->Resource.Get());
@@ -688,7 +686,7 @@ bool8 FD3D12GfxCommandList::EnsureScratchDescriptors()
         TResult<FD3D12Descriptor> Rtv = RtvHeap.Allocate();
         if (Rtv.HasError())
         {
-            std::println("BeginRendering: {}", Rtv.GetError().Message);
+            RAVEN_LOG(LogD3D12, Error, "BeginRendering: {}", Rtv.GetError().Message);
             FreeAll();
             return false;
         }
@@ -697,7 +695,7 @@ bool8 FD3D12GfxCommandList::EnsureScratchDescriptors()
     TResult<FD3D12Descriptor> Dsv = DsvHeap.Allocate();
     if (Dsv.HasError())
     {
-        std::println("BeginRendering: {}", Dsv.GetError().Message);
+        RAVEN_LOG(LogD3D12, Error, "BeginRendering: {}", Dsv.GetError().Message);
         FreeAll();
         return false;
     }

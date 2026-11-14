@@ -2,8 +2,6 @@
 
 #include "Graphics/D3D12/D3D12CommandListPool.hpp"
 
-#include <print>
-
 #include "Graphics/D3D12/D3D12GfxCommandList.hpp"
 #include "Graphics/D3D12/D3D12GfxQueue.hpp"
 
@@ -45,7 +43,7 @@ FD3D12GfxCommandList* FD3D12CommandListPool::Acquire()
     {
         if (FAILED(Allocator->Reset()))
         {
-            std::println("Failed to reset command allocator");
+            RAVEN_LOG(LogD3D12, Error, "Failed to reset command allocator");
             Allocator = nullptr;
         }
     }
@@ -86,7 +84,7 @@ TComPtr<ID3D12CommandAllocator> FD3D12CommandListPool::CreateAllocator()
     TComPtr<ID3D12CommandAllocator> Allocator;
     if (FAILED(NativeDevice->CreateCommandAllocator(ToD3D12CommandListType(Queue->GetType()), IID_PPV_ARGS(&Allocator))))
     {
-        std::println("Failed to create command allocator");
+        RAVEN_LOG(LogD3D12, Error, "Failed to create command allocator");
         return nullptr;
     }
 
@@ -105,7 +103,7 @@ FD3D12GfxCommandList* FD3D12CommandListPool::CreateCommandList()
     TComPtr<ID3D12GraphicsCommandList10> NativeList;
     if (FAILED(NativeDevice->CreateCommandList1(0, ToD3D12CommandListType(Queue->GetType()), D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&NativeList))))
     {
-        std::println("Failed to create command list");
+        RAVEN_LOG(LogD3D12, Error, "Failed to create command list");
         return nullptr;
     }
 

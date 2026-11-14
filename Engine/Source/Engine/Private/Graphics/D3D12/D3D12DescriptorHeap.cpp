@@ -2,8 +2,6 @@
 
 #include "Graphics/D3D12/D3D12DescriptorHeap.hpp"
 
-#include <print>
-
 bool8 FD3D12Descriptor::IsValid() const
 {
     return Index != GfxInvalidBindlessIndex;
@@ -50,7 +48,7 @@ void FD3D12DescriptorHeap::Deinitialize()
     std::scoped_lock Lock(Mutex);
     if (AllocatedCount > 0)
     {
-        std::println("Descriptor heap destroyed with {} descriptors still allocated", AllocatedCount);
+        RAVEN_LOG(LogD3D12, Warning, "Descriptor heap destroyed with {} descriptors still allocated", AllocatedCount);
     }
     FreeIndices.clear();
     AllocationStates.clear();
@@ -96,12 +94,12 @@ void FD3D12DescriptorHeap::Free(uint32 Index)
     std::scoped_lock Lock(Mutex);
     if (Index < ReservedCount || Index >= Capacity)
     {
-        std::println("Tried to free reserved or out-of-range index '{}' in descriptor heap", Index);
+        RAVEN_LOG(LogD3D12, Error, "Tried to free reserved or out-of-range index '{}' in descriptor heap", Index);
         return;
     }
     if (AllocationStates[Index] == 0)
     {
-        std::println("Double free of index '{}' in descriptor heap", Index);
+        RAVEN_LOG(LogD3D12, Error, "Double free of index '{}' in descriptor heap", Index);
         return;
     }
     AllocationStates[Index] = 0;

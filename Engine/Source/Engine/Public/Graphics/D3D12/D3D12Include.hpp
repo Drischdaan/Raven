@@ -15,5 +15,9 @@
 
 #include <wrl.h>
 
+#include "Core/Logging/Log.hpp"
+
 template <typename T>
 using TComPtr = Microsoft::WRL::ComPtr<T>;
+
+RAVEN_DECLARE_LOG_CATEGORY(LogD3D12, Trace, Trace);

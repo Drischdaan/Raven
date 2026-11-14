@@ -2,8 +2,6 @@
 
 #include "Graphics/D3D12/D3D12GfxDevice.hpp"
 
-#include <print>
-
 #include "Core/Utility/Macros.hpp"
 #include "Graphics/D3D12/D3D12Conversions.hpp"
 #include "Graphics/D3D12/D3D12GfxCommandList.hpp"
@@ -620,7 +618,7 @@ void FD3D12GfxDevice::DestroyBuffer(const FGfxBufferHandle BufferHandle)
     TResult<FD3D12Buffer> Removed = Buffers.Remove(BufferHandle);
     if (Removed.HasError())
     {
-        std::println("DestroyBuffer: {}", Removed.GetError().Message);
+        RAVEN_LOG(LogD3D12, Error, "DestroyBuffer: {}", Removed.GetError().Message);
         return;
     }
     FD3D12Buffer Buffer = std::move(Removed).GetValue();
@@ -633,14 +631,14 @@ void FD3D12GfxDevice::DestroyTexture(const FGfxTextureHandle TextureHandle)
 {
     if (const FD3D12Texture* Texture = Textures.Get(TextureHandle); Texture != nullptr && Texture->bIsSwapchainImage)
     {
-        std::println("DestroyTexture: swapchain back buffers are owned by their swapchain");
+        RAVEN_LOG(LogD3D12, Error, "DestroyTexture: swapchain back buffers are owned by their swapchain");
         return;
     }
 
     TResult<FD3D12Texture> Removed = Textures.Remove(TextureHandle);
     if (Removed.HasError())
     {
-        std::println("DestroyTexture: {}", Removed.GetError().Message);
+        RAVEN_LOG(LogD3D12, Error, "DestroyTexture: {}", Removed.GetError().Message);
         return;
     }
     FD3D12Texture Texture = std::move(Removed).GetValue();
@@ -657,7 +655,7 @@ void FD3D12GfxDevice::DestroyTextureView(const FGfxTextureViewHandle TextureView
     TResult<FD3D12TextureView> Removed = TextureViews.Remove(TextureViewHandle);
     if (Removed.HasError())
     {
-        std::println("DestroyTextureView: {}", Removed.GetError().Message);
+        RAVEN_LOG(LogD3D12, Error, "DestroyTextureView: {}", Removed.GetError().Message);
         return;
     }
     FreeDescriptorDeferred(ED3D12DescriptorHeapType::Resource, Removed.GetValue().DescriptorIndex);
@@ -668,7 +666,7 @@ void FD3D12GfxDevice::DestroyShader(const FGfxShaderHandle ShaderHandle)
     const TResult<FD3D12Shader> Removed = Shaders.Remove(ShaderHandle);
     if (Removed.HasError())
     {
-        std::println("DestroyShader: {}", Removed.GetError().Message);
+        RAVEN_LOG(LogD3D12, Error, "DestroyShader: {}", Removed.GetError().Message);
     }
 }
 
@@ -677,7 +675,7 @@ void FD3D12GfxDevice::DestroyPipeline(const FGfxPipelineHandle PipelineHandle)
     TResult<FD3D12Pipeline> Removed = Pipelines.Remove(PipelineHandle);
     if (Removed.HasError())
     {
-        std::println("DestroyPipeline: {}", Removed.GetError().Message);
+        RAVEN_LOG(LogD3D12, Error, "DestroyPipeline: {}", Removed.GetError().Message);
         return;
     }
     DeferRelease(std::move(Removed.GetValue().PipelineState));
@@ -945,13 +943,13 @@ FGfxSyncPoint FD3D12GfxDevice::Submit(const FGfxSubmitDesc& SubmitDesc)
 {
     if ((SubmitDesc.WaitForAcquire != nullptr || SubmitDesc.SignalForPresent != nullptr) && SubmitDesc.QueueType != EGfxQueueType::Graphics)
     {
-        std::println("Submit: swapchain images can only be acquired and presented on the graphics queue");
+        RAVEN_LOG(LogD3D12, Error, "Submit: swapchain images can only be acquired and presented on the graphics queue");
         return {};
     }
 
     if (SubmitDesc.CommandLists.size() > MaxCommandListsPerSubmit)
     {
-        std::println("Submit: too many command lists ({} > {})", SubmitDesc.CommandLists.size(), MaxCommandListsPerSubmit);
+        RAVEN_LOG(LogD3D12, Error, "Submit: too many command lists ({} > {})", SubmitDesc.CommandLists.size(), MaxCommandListsPerSubmit);
         return {};
     }
 
@@ -964,12 +962,12 @@ FGfxSyncPoint FD3D12GfxDevice::Submit(const FGfxSubmitDesc& SubmitDesc)
         FD3D12GfxCommandList* D3D12List = dynamic_cast<FD3D12GfxCommandList*>(CommandList);
         if (D3D12List->GetQueueType() != SubmitDesc.QueueType)
         {
-            std::println("Submit: command list was acquired for a different queue type");
+            RAVEN_LOG(LogD3D12, Error, "Submit: command list was acquired for a different queue type");
             return {};
         }
         if (!D3D12List->IsRecording())
         {
-            std::println("Submit: command list was already submitted");
+            RAVEN_LOG(LogD3D12, Error, "Submit: command list was already submitted");
             return {};
         }
         D3D12List->Close();
@@ -1005,7 +1003,7 @@ void FD3D12GfxDevice::BeginFrame()
 {
     if (bIsInFrame)
     {
-        std::println("BeginFrame called twice without EndFrame");
+        RAVEN_LOG(LogD3D12, Error, "BeginFrame called twice without EndFrame");
         return;
     }
 
@@ -1020,7 +1018,7 @@ void FD3D12GfxDevice::EndFrame()
 {
     if (!bIsInFrame)
     {
-        std::println("EndFrame called without BeginFrame");
+        RAVEN_LOG(LogD3D12, Error, "EndFrame called without BeginFrame");
         return;
     }
 
@@ -1089,7 +1087,7 @@ void FD3D12GfxDevice::UnregisterSwapchainImage(const FGfxTextureHandle TextureHa
     const TResult<FD3D12Texture> Removed = Textures.Remove(TextureHandle);
     if (Removed.HasError())
     {
-        std::println("UnregisterSwapchainImage: {}", Removed.GetError().Message);
+        RAVEN_LOG(LogD3D12, Error, "UnregisterSwapchainImage: {}", Removed.GetError().Message);
     }
 }
 
@@ -1132,13 +1130,13 @@ FGfxTransientAllocation FD3D12GfxDevice::AllocateTransient(const uint64 Size, co
 {
     if (!bIsInFrame)
     {
-        std::println("AllocateTransient: only valid between BeginFrame and EndFrame");
+        RAVEN_LOG(LogD3D12, Error, "AllocateTransient: only valid between BeginFrame and EndFrame");
         return {};
     }
     TResult<FGfxTransientAllocation> Allocation = TransientAllocator.Allocate(Size, Alignment);
     if (Allocation.HasError())
     {
-        std::println("AllocateTransient: {}", Allocation.GetError().Message);
+        RAVEN_LOG(LogD3D12, Error, "AllocateTransient: {}", Allocation.GetError().Message);
         return {};
     }
     return std::move(Allocation).GetValue();
@@ -1172,7 +1170,7 @@ FResult FD3D12GfxDevice::FindSuitableAdapter()
             TempAdapter.Reset();
             continue;
         }
-        std::println("Chosen Adapter: {}", WideToUtf8(AdapterDesc.Description));
+        RAVEN_LOG(LogD3D12, Info, "Chosen Adapter: {}", WideToUtf8(AdapterDesc.Description));
         break;
     }
     if (TempAdapter == nullptr)
@@ -1198,7 +1196,7 @@ void FD3D12GfxDevice::EnableDebugLayers()
         }
         else
         {
-            std::println("D3D12 debug layer unavailable (install the Windows 'Graphics Tools' optional feature)");
+            RAVEN_LOG(LogD3D12, Warning, "D3D12 debug layer unavailable (install the Windows 'Graphics Tools' optional feature)");
         }
     }
 
@@ -1234,32 +1232,35 @@ void FD3D12GfxDevice::SetupInfoQueue()
 
     if (FAILED(Device.As(&InfoQueue)))
     {
-        std::println("ID3D12InfoQueue1 unavailable: D3D12 messages only appear in the debugger output");
+        RAVEN_LOG(LogD3D12, Warning, "ID3D12InfoQueue1 unavailable: D3D12 messages only appear in the debugger output");
         return;
     }
 
     const auto OnMessage = [](D3D12_MESSAGE_CATEGORY, const D3D12_MESSAGE_SEVERITY Severity, const D3D12_MESSAGE_ID Id, const LPCSTR Description, void*)
     {
-        const char* SeverityName = "INFO";
         switch (Severity)
         {
-        case D3D12_MESSAGE_SEVERITY_CORRUPTION: SeverityName = "CORRUPTION";
+        case D3D12_MESSAGE_SEVERITY_CORRUPTION:
+            RAVEN_LOG(LogD3D12, Error, "[Corruption] ({}) {}", static_cast<int32>(Id), Description);
             break;
-        case D3D12_MESSAGE_SEVERITY_ERROR: SeverityName = "ERROR";
+        case D3D12_MESSAGE_SEVERITY_ERROR:
+            RAVEN_LOG(LogD3D12, Error, "({}) {}", static_cast<int32>(Id), Description);
             break;
-        case D3D12_MESSAGE_SEVERITY_WARNING: SeverityName = "WARNING";
+        case D3D12_MESSAGE_SEVERITY_WARNING:
+            RAVEN_LOG(LogD3D12, Warning, "({}) {}", static_cast<int32>(Id), Description);
+            break;
+        case D3D12_MESSAGE_SEVERITY_MESSAGE:
+            RAVEN_LOG(LogD3D12, Info, "({}) {}", static_cast<int32>(Id), Description);
             break;
         case D3D12_MESSAGE_SEVERITY_INFO:
-            return;
-        case D3D12_MESSAGE_SEVERITY_MESSAGE: SeverityName = "MESSAGE";
+            RAVEN_LOG(LogD3D12, Verbose, "({}) {}", static_cast<int32>(Id), Description);
             break;
         }
-        std::println("[D3D12 {}] ({}) {}", SeverityName, static_cast<int32>(Id), Description);
     };
 
     if (FAILED(InfoQueue->RegisterMessageCallback(OnMessage, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, &InfoQueueCallbackCookie)))
     {
-        std::println("Failed to register the D3D12 message callback");
+        RAVEN_LOG(LogD3D12, Warning, "Failed to register the D3D12 message callback");
         InfoQueue.Reset();
     }
 }
@@ -1302,7 +1303,7 @@ FResult FD3D12GfxDevice::CreateDevice()
     }
     FeatureLevel = HighestSupportedFeatureLevel;
     RESULT_TRY_PLATFORM_CALL_CLEANUP(D3D12CreateDevice(Adapter.Get(), FeatureLevel, IID_PPV_ARGS(&Device)), Device.Reset();, "Failed to create D3D12 device")
-    std::println("Created device with feature level {}", FeatureLevelToString(FeatureLevel));
+    RAVEN_LOG(LogD3D12, Info, "Created device with feature level {}", FeatureLevelToString(FeatureLevel));
     return RESULT_OK_EMPTY();
 }
 
@@ -1353,12 +1354,12 @@ FResult FD3D12GfxDevice::CheckFeatureSupport()
         return RESULT_ERROR("Bindless rendering requires shader model 6.6 (ResourceDescriptorHeap)");
     }
 
-    std::println("Device Capabilities:");
-    std::println(" - Tearing: {}", Capabilities.bSupportsTearing);
-    std::println(" - RayTracing: {}", Capabilities.bSupportsRayTracing);
-    std::println(" - VariableRateShading: {}", Capabilities.bSupportsVariableRateShading);
-    std::println(" - MeshShaders: {}", Capabilities.bSupportsMeshShaders);
-    std::println(" - GpuUploadHeap: {}", Capabilities.bSupportsGpuUploadHeap);
+    RAVEN_LOG(LogD3D12, Info, "Device Capabilities:");
+    RAVEN_LOG(LogD3D12, Info, " - Tearing: {}", Capabilities.bSupportsTearing);
+    RAVEN_LOG(LogD3D12, Info, " - RayTracing: {}", Capabilities.bSupportsRayTracing);
+    RAVEN_LOG(LogD3D12, Info, " - VariableRateShading: {}", Capabilities.bSupportsVariableRateShading);
+    RAVEN_LOG(LogD3D12, Info, " - MeshShaders: {}", Capabilities.bSupportsMeshShaders);
+    RAVEN_LOG(LogD3D12, Info, " - GpuUploadHeap: {}", Capabilities.bSupportsGpuUploadHeap);
 
     return RESULT_OK_EMPTY();
 }
@@ -1529,7 +1530,7 @@ void FD3D12GfxDevice::ReportAndReleaseLeakedResources()
     const uint32 LeakedTextureViews = TextureViews.GetAliveCount();
     if (LeakedBuffers + LeakedTextures + LeakedTextureViews > 0)
     {
-        std::println("Gfx device shut down with {} buffers, {} textures and {} texture views still alive", LeakedBuffers, LeakedTextures, LeakedTextureViews);
+        RAVEN_LOG(LogD3D12, Warning, "Gfx device shut down with {} buffers, {} textures and {} texture views still alive", LeakedBuffers, LeakedTextures, LeakedTextureViews);
     }
     Pipelines.Clear();
     Shaders.Clear();
@@ -1637,14 +1638,14 @@ void FD3D12GfxDevice::LoadShaderCompiler()
     ShaderCompilerModule = LoadLibraryW(L"dxcompiler.dll");
     if (ShaderCompilerModule == nullptr)
     {
-        std::println("dxcompiler.dll not found: shaders are created without reflection or binding validation");
+        RAVEN_LOG(LogD3D12, Warning, "dxcompiler.dll not found: shaders are created without reflection or binding validation");
         return;
     }
 
     const auto CreateInstance = reinterpret_cast<DxcCreateInstanceProc>(GetProcAddress(ShaderCompilerModule, "DxcCreateInstance"));
     if (CreateInstance == nullptr || FAILED(CreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&DxcUtils))))
     {
-        std::println("dxcompiler.dll has no usable DxcCreateInstance: shaders are created without reflection");
+        RAVEN_LOG(LogD3D12, Warning, "dxcompiler.dll has no usable DxcCreateInstance: shaders are created without reflection");
         UnloadShaderCompiler();
     }
 }
@@ -1673,7 +1674,7 @@ TResult<FD3D12ShaderReflection> FD3D12GfxDevice::ReflectShader(TSpan<const byte8
         std::scoped_lock Lock(DxcMutex);
         if (FAILED(DxcUtils->CreateReflection(&Buffer, IID_PPV_ARGS(&Reflection))))
         {
-            std::println("Shader has no reflection data (compiled with -Qstrip_reflect?); skipping validation");
+            RAVEN_LOG(LogD3D12, Warning, "Shader has no reflection data (compiled with -Qstrip_reflect?); skipping validation");
             return RESULT_OK(Result);
         }
     }
