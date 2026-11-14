@@ -37,7 +37,7 @@ try {
 
     Push-Location $RepoRoot
     try {
-        & xmake project -k vsxmake2026 ./Engine/Build/ -y
+        & xmake project -y -k vsxmake2026 ./Engine/Build/
         if ($LASTEXITCODE -ne 0) {
             throw "xmake project generation failed with exit code $LASTEXITCODE"
         }

@@ -11,6 +11,7 @@ setup_workspace()
 -- Dependencies START
 add_requires('directx12-agility 1.619.2')
 add_requires('directx-headers 1.619.5')
+add_requires('directxshadercompiler 1.8.2405')
 
 -- Dependencies END
 

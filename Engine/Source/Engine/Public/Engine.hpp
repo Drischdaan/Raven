@@ -7,6 +7,7 @@
 #include "Core/CoreTypes.hpp"
 #include "Core/Memory/SmartPointers.hpp"
 #include "Core/Utility/Result.hpp"
+#include "Renderer/Renderer.hpp"
 
 class IGfxSwapchain;
 class IGfxDevice;
@@ -27,6 +28,7 @@ private:
     std::atomic<bool8> bShouldRun = true;
 
     TSharedPtr<FWindow> Window = nullptr;
+    TUniquePtr<FRenderer> Renderer = nullptr;
 };
 
 extern RAVEN_API FEngine* GEngine;

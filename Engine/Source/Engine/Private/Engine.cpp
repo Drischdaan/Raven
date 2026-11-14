@@ -38,6 +38,14 @@ FResult FEngine::Start()
     FWindowSettings WindowSettings = {};
     Window = MakeShared<FWindow>(WindowSettings);
     Window->Show();
+
+    FRendererDesc RendererDesc = {.Window = Window};
+#if defined(RAVEN_MODE_DEBUG)
+    RendererDesc.bEnableDebugLayer = true;
+    RendererDesc.bShaderDebugInfo = true;
+#endif
+    Renderer = MakeUnique<FRenderer>();
+    RESULT_CHECK(Renderer->Initialize(RendererDesc));
     return RESULT_OK_EMPTY();
 }
 
@@ -57,11 +65,19 @@ void FEngine::Loop()
             TranslateMessage(&Message);
             DispatchMessage(&Message);
         }
+
+        const FResult RenderResult = Renderer->Render(FRenderView{});
+        if (RenderResult.HasError())
+        {
+            RAVEN_LOG_ERROR(LogCore, RenderResult.GetError());
+            RequestShutdown();
+        }
     }
 }
 
 void FEngine::Stop()
 {
+    Renderer.reset();
     Window.reset();
 }
 
