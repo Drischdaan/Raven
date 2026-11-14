@@ -3,12 +3,13 @@
 #include "Engine.hpp"
 
 #include <cassert>
+#include <print>
 #include <Windows.h>
 
 #include "Core/Memory/Memory.hpp"
 #include "Core/Memory/MemoryResource.hpp"
 #include "Core/Memory/MemoryTag.hpp"
-#include "Core/Memory/Containers/String.hpp"
+#include "Graphics/GfxDevice.hpp"
 
 #include "Platform/Window.hpp"
 
@@ -16,7 +17,13 @@ FEngine* GEngine = nullptr;
 
 void FEngine::Run()
 {
-    Start();
+    const FResult Result = Start();
+    if (Result.HasError())
+    {
+        std::println("Error: {}", Result.GetError().Message);
+        Stop();
+        return;
+    }
     Loop();
     Stop();
 }
@@ -26,11 +33,12 @@ void FEngine::RequestShutdown()
     bShouldRun = false;
 }
 
-void FEngine::Start()
+FResult FEngine::Start()
 {
     FWindowSettings WindowSettings = {};
     Window = MakeShared<FWindow>(WindowSettings);
     Window->Show();
+    return RESULT_OK_EMPTY();
 }
 
 void FEngine::Loop()
@@ -40,6 +48,7 @@ void FEngine::Loop()
         if (Window->GetWindowState().bIsClosed)
         {
             RequestShutdown();
+            continue;
         }
 
         MSG Message;
@@ -55,7 +64,6 @@ void FEngine::Stop()
 {
     Window.reset();
 }
-
 
 void StartupEngine()
 {

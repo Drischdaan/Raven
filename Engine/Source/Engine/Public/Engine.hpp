@@ -6,7 +6,10 @@
 
 #include "Core/CoreTypes.hpp"
 #include "Core/Memory/SmartPointers.hpp"
+#include "Core/Utility/Result.hpp"
 
+class IGfxSwapchain;
+class IGfxDevice;
 class FWindow;
 
 class RAVEN_API FEngine
@@ -16,7 +19,7 @@ public:
     void RequestShutdown();
 
 private:
-    void Start();
+    FResult Start();
     void Loop();
     void Stop();
 

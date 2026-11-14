@@ -37,8 +37,13 @@ public:
         {
             return;
         }
+        void* Allocation = Pointer;
+        if constexpr (std::is_polymorphic_v<T>)
+        {
+            Allocation = dynamic_cast<void*>(Pointer);
+        }
         std::destroy_at<T>(Pointer);
-        Deallocate(static_cast<void*>(Pointer));
+        Deallocate(static_cast<void*>(Allocation));
     }
 
 private:

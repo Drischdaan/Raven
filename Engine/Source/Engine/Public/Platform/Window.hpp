@@ -40,6 +40,7 @@ public:
     void Hide();
 
     [[nodiscard]] const FWindowState& GetWindowState() const;
+    [[nodiscard]] HWND GetNativeHandle() const;
 
 private:
     LRESULT WindowProcess(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

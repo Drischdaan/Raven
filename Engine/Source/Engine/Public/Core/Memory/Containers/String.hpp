@@ -26,7 +26,6 @@ namespace String
     [[nodiscard]] TString Format(TFormat FormatString, TArguments&&... Arguments)
     {
         TString Result;
-        Result.reserve(std::formatted_size(FormatString, Arguments...));
         std::format_to(std::back_inserter(Result), FormatString, std::forward<TArguments>(Arguments)...);
         return Result;
     }

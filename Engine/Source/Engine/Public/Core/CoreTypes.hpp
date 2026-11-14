@@ -20,3 +20,5 @@ using float32 = float;
 using float64 = double;
 
 using bool8 = bool;
+
+using byte8 = unsigned char;

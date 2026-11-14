@@ -8,4 +8,10 @@ includes('Engine/Build/workspace.lua')
 
 setup_workspace()
 
+-- Dependencies START
+add_requires('directx12-agility 1.619.2')
+add_requires('directx-headers 1.619.5')
+
+-- Dependencies END
+
 includes('Engine/Source/**/xmake.lua')

@@ -59,7 +59,7 @@ FResult FVirtualMemoryArena::Initialize(const size64 InReserveSize, const size64
 
     if (InReserveSize == 0)
     {
-        return ERROR("Reserved size cannot be zero");
+        return RESULT_ERROR("Reserved size cannot be zero");
     }
 
     const size64 PageSize = VirtualMemory::GetPageSize();
@@ -69,7 +69,7 @@ FResult FVirtualMemoryArena::Initialize(const size64 InReserveSize, const size64
     void* Reserved = VirtualMemory::Reserve(AlignedReserveSize);
     if (Reserved == nullptr)
     {
-        return ERROR("Unable to reserve memory");
+        return RESULT_ERROR("Unable to reserve memory");
     }
 
     BasePointer = static_cast<uint8_t*>(Reserved);
@@ -77,7 +77,7 @@ FResult FVirtualMemoryArena::Initialize(const size64 InReserveSize, const size64
     CommittedBlockSize = AlignUp(InCommitBlockSize == 0 ? DefaultCommitBlockSize : InCommitBlockSize, PageSize);
     CommittedSize = 0;
     Offset = 0;
-    return OK();
+    return RESULT_OK_EMPTY();
 }
 
 void FVirtualMemoryArena::Deinitialize()

@@ -78,6 +78,11 @@ const FWindowState& FWindow::GetWindowState() const
     return State;
 }
 
+HWND FWindow::GetNativeHandle() const
+{
+    return WindowHandle;
+}
+
 LRESULT FWindow::WindowProcess(const HWND hwnd, const UINT uMsg, const WPARAM wParam, const LPARAM lParam)
 {
     switch (uMsg)
