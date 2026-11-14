@@ -7,6 +7,7 @@
 #include "Core/Utility/Macros.hpp"
 #include "Graphics/D3D12/D3D12Conversions.hpp"
 #include "Graphics/D3D12/D3D12GfxCommandList.hpp"
+#include "Graphics/D3D12/D3D12PipelineStream.hpp"
 #include "Graphics/D3D12/D3D12Swapchain.hpp"
 
 namespace
@@ -209,6 +210,25 @@ namespace
         }
         return UavDesc;
     }
+
+    D3D12_SHADER_VERSION_TYPE ToShaderVersionType(const EGfxShaderStage Stage)
+    {
+        switch (Stage)
+        {
+        case EGfxShaderStage::Vertex: return D3D12_SHVER_VERTEX_SHADER;
+        case EGfxShaderStage::Pixel: return D3D12_SHVER_PIXEL_SHADER;
+        case EGfxShaderStage::Compute: return D3D12_SHVER_COMPUTE_SHADER;
+        case EGfxShaderStage::Amplification: return D3D12_SHVER_AMPLIFICATION_SHADER;
+        case EGfxShaderStage::Mesh: return D3D12_SHVER_MESH_SHADER;
+        default:
+            return D3D12_SHVER_RESERVED0;
+        }
+    }
+
+    bool8 HasThreadGroups(const EGfxShaderStage Stage)
+    {
+        return Stage == EGfxShaderStage::Compute || Stage == EGfxShaderStage::Mesh || Stage == EGfxShaderStage::Amplification;
+    }
 }
 
 uint64 FGfxSamplerDescHasher::operator()(const FGfxSamplerDesc& Desc) const noexcept
@@ -242,13 +262,17 @@ FResult FD3D12GfxDevice::Initialize(const FGfxDeviceDesc& InDeviceDesc)
     }
     DeviceDesc = InDeviceDesc;
 
+    EnableDebugLayers();
     RESULT_CHECK(AcquireFactory())
     RESULT_CHECK(FindSuitableAdapter())
     RESULT_CHECK(CreateDevice())
+    SetupInfoQueue();
     RESULT_CHECK(CheckFeatureSupport())
     RESULT_CHECK(CreateQueues())
     RESULT_CHECK(CreateDescriptorHeaps())
     RESULT_CHECK(CreateGlobalRootSignature())
+    RESULT_CHECK(CreateCommandSignatures())
+    LoadShaderCompiler();
 
     static_assert(MaxFramesInFlight <= FD3D12TransientAllocator::MaxFrameSlots);
     TransientAllocator.Initialize(*this);
@@ -266,8 +290,6 @@ FResult FD3D12GfxDevice::Initialize(const FGfxDeviceDesc& InDeviceDesc)
 
 FD3D12GfxDevice::~FD3D12GfxDevice()
 {
-    // Members would otherwise be destroyed in reverse declaration order: the descriptor heaps
-    // before the command list pools, whose command lists free their RTV/DSV slots into them.
     Deinitialize();
 }
 
@@ -286,6 +308,10 @@ void FD3D12GfxDevice::Deinitialize()
     }
     ReportAndReleaseLeakedResources();
 
+    DrawIndexedSignature.Reset();
+    DispatchSignature.Reset();
+    DispatchMeshSignature.Reset();
+    UnloadShaderCompiler();
     for (FD3D12CommandListPool& CommandListPool : CommandListPools)
     {
         CommandListPool.Deinitialize();
@@ -299,6 +325,7 @@ void FD3D12GfxDevice::Deinitialize()
     {
         DescriptorHeap.Deinitialize();
     }
+    ShutdownInfoQueue(); // the info queue holds a reference to the device
     Device.Reset();
     Adapter.Reset();
     Factory.Reset();
@@ -636,6 +663,26 @@ void FD3D12GfxDevice::DestroyTextureView(const FGfxTextureViewHandle TextureView
     FreeDescriptorDeferred(ED3D12DescriptorHeapType::Resource, Removed.GetValue().DescriptorIndex);
 }
 
+void FD3D12GfxDevice::DestroyShader(const FGfxShaderHandle ShaderHandle)
+{
+    const TResult<FD3D12Shader> Removed = Shaders.Remove(ShaderHandle);
+    if (Removed.HasError())
+    {
+        std::println("DestroyShader: {}", Removed.GetError().Message);
+    }
+}
+
+void FD3D12GfxDevice::DestroyPipeline(const FGfxPipelineHandle PipelineHandle)
+{
+    TResult<FD3D12Pipeline> Removed = Pipelines.Remove(PipelineHandle);
+    if (Removed.HasError())
+    {
+        std::println("DestroyPipeline: {}", Removed.GetError().Message);
+        return;
+    }
+    DeferRelease(std::move(Removed.GetValue().PipelineState));
+}
+
 uint32 FD3D12GfxDevice::GetBindlessIndex(const FGfxBufferHandle BufferHandle, const EGfxViewType ViewType) const
 {
     const FD3D12Buffer* Buffer = Buffers.Get(BufferHandle);
@@ -748,6 +795,138 @@ FGfxTextureCopyLayout FD3D12GfxDevice::GetCopyLayout(const FGfxTextureHandle Tex
         .Height = Footprint.Footprint.Height,
         .Depth = Footprint.Footprint.Depth,
     };
+}
+
+TResult<FGfxShaderHandle> FD3D12GfxDevice::CreateShader(const FGfxShaderDesc& ShaderDesc)
+{
+    if (ShaderDesc.Format != EGfxShaderFormat::DXIL)
+    {
+        return RESULT_ERROR("The D3D12 backend only accepts DXIL shaders");
+    }
+    if (ShaderDesc.Bytecode.size() < 4 || std::memcmp(ShaderDesc.Bytecode.data(), "DXBC", 4) != 0)
+    {
+        return RESULT_ERROR("Shader bytecode isn't a DXIL container");
+    }
+    if ((ShaderDesc.Stage == EGfxShaderStage::Mesh || ShaderDesc.Stage == EGfxShaderStage::Amplification) && !Capabilities.bSupportsMeshShaders)
+    {
+        return RESULT_ERROR("Mesh shaders aren't supported on this device");
+    }
+
+    RESULT_CHECK_ASSIGN(ReflectShader(ShaderDesc.Bytecode, ShaderDesc.Stage), Reflection)
+
+    FD3D12Shader Shader;
+    Shader.Stage = ShaderDesc.Stage;
+    Shader.Bytecode.assign(ShaderDesc.Bytecode.begin(), ShaderDesc.Bytecode.end());
+    Shader.EntryPoint = FString(ShaderDesc.EntryPoint);
+    Shader.DebugName = FString(ShaderDesc.DebugName);
+    Shader.Reflection = Reflection;
+
+    return Shaders.Allocate(std::move(Shader));
+}
+
+TResult<FGfxPipelineHandle> FD3D12GfxDevice::CreateGraphicsPipeline(const FGfxGraphicsPipelineDesc& GraphicsPipelineDesc, const FStringView DebugName)
+{
+    const FD3D12Shader* VertexShader = Shaders.Get(GraphicsPipelineDesc.VertexShader);
+    const FD3D12Shader* AmplificationShader = Shaders.Get(GraphicsPipelineDesc.AmplificationShader);
+    const FD3D12Shader* MeshShader = Shaders.Get(GraphicsPipelineDesc.MeshShader);
+    const FD3D12Shader* PixelShader = Shaders.Get(GraphicsPipelineDesc.PixelShader);
+
+    const bool8 bIsMesh = MeshShader != nullptr;
+    if ((VertexShader != nullptr) == bIsMesh)
+    {
+        return RESULT_ERROR("A graphics pipeline needs exactly one of a vertex or a mesh shader");
+    }
+    if (AmplificationShader != nullptr && !bIsMesh)
+    {
+        return RESULT_ERROR("An amplification shader needs a mesh shader");
+    }
+    const auto HasStage = [](const FD3D12Shader* Shader, const EGfxShaderStage Stage)
+    {
+        return Shader == nullptr || Shader->Stage == Stage;
+    };
+    if (!HasStage(VertexShader, EGfxShaderStage::Vertex) || !HasStage(AmplificationShader, EGfxShaderStage::Amplification) ||
+        !HasStage(MeshShader, EGfxShaderStage::Mesh) || !HasStage(PixelShader, EGfxShaderStage::Pixel))
+    {
+        return RESULT_ERROR("A shader handle was passed in the wrong pipeline slot");
+    }
+    if (GraphicsPipelineDesc.RenderTargetCount > GfxMaxRenderTargets)
+    {
+        return RESULT_ERROR("Too many render targets");
+    }
+
+    D3D12_RT_FORMAT_ARRAY RenderTargetFormats = {};
+    RenderTargetFormats.NumRenderTargets = GraphicsPipelineDesc.RenderTargetCount;
+    for (uint32 Index = 0; Index < GraphicsPipelineDesc.RenderTargetCount; ++Index)
+    {
+        RenderTargetFormats.RTFormats[Index] = GetD3D12FormatInfo(GraphicsPipelineDesc.RenderTargetFormats[Index]).ViewFormat;
+    }
+    const bool8 bHasDepthTarget = GraphicsPipelineDesc.DepthStencilFormat != EGfxFormat::Unknown;
+    const DXGI_FORMAT DepthStencilFormat = bHasDepthTarget ? GetD3D12FormatInfo(GraphicsPipelineDesc.DepthStencilFormat).DepthStencilFormat : DXGI_FORMAT_UNKNOWN;
+
+    FD3D12PipelineStream Stream;
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_ROOT_SIGNATURE(GlobalRootSignature.Get()));
+    if (bIsMesh)
+    {
+        if (AmplificationShader != nullptr)
+        {
+            Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_AS(AmplificationShader->GetBytecode()));
+        }
+        Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_MS(MeshShader->GetBytecode()));
+    }
+    else
+    {
+        Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_VS(VertexShader->GetBytecode()));
+        Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_PRIMITIVE_TOPOLOGY(ToD3D12TopologyType(GraphicsPipelineDesc.Topology)));
+    }
+    if (PixelShader != nullptr)
+    {
+        Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_PS(PixelShader->GetBytecode()));
+    }
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_RASTERIZER(CD3DX12_RASTERIZER_DESC(ToD3D12RasterizerDesc(GraphicsPipelineDesc.RasterState))));
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_DEPTH_STENCIL(CD3DX12_DEPTH_STENCIL_DESC(ToD3D12DepthStencilDesc(GraphicsPipelineDesc.DepthStencilState, bHasDepthTarget))));
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_BLEND_DESC(CD3DX12_BLEND_DESC(ToD3D12BlendDesc(GraphicsPipelineDesc.BlendState))));
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_RENDER_TARGET_FORMATS(RenderTargetFormats));
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_DEPTH_STENCIL_FORMAT(DepthStencilFormat));
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_SAMPLE_DESC(DXGI_SAMPLE_DESC{.Count = GraphicsPipelineDesc.SampleCount, .Quality = 0}));
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_SAMPLE_MASK(UINT32_MAX));
+
+    RESULT_CHECK_ASSIGN(Stream.GetDesc(), StreamDesc)
+
+    FD3D12Pipeline Pipeline;
+    Pipeline.Type = bIsMesh ? ED3D12PipelineType::Mesh : ED3D12PipelineType::Graphics;
+    Pipeline.Topology = ToD3D12Topology(GraphicsPipelineDesc.Topology);
+    if (bIsMesh)
+    {
+        Pipeline.ThreadGroupSize = MeshShader->Reflection.ThreadGroupSize;
+    }
+
+    RESULT_TRY_PLATFORM_CALL(Device->CreatePipelineState(&StreamDesc, IID_PPV_ARGS(&Pipeline.PipelineState)), "Failed to create graphics pipeline")
+    SetD3D12DebugName(Pipeline.PipelineState.Get(), DebugName);
+
+    return Pipelines.Allocate(std::move(Pipeline));
+}
+
+TResult<FGfxPipelineHandle> FD3D12GfxDevice::CreateComputePipeline(const FGfxComputePipelineDesc& ComputePipelineDesc, const FStringView DebugName)
+{
+    const FD3D12Shader* ComputeShader = Shaders.Get(ComputePipelineDesc.ComputeShader);
+    if (ComputeShader == nullptr || ComputeShader->Stage != EGfxShaderStage::Compute)
+    {
+        return RESULT_ERROR("A compute pipeline needs a valid compute shader");
+    }
+
+    FD3D12PipelineStream Stream;
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_ROOT_SIGNATURE(GlobalRootSignature.Get()));
+    Stream.Add(CD3DX12_PIPELINE_STATE_STREAM_CS(ComputeShader->GetBytecode()));
+    RESULT_CHECK_ASSIGN(Stream.GetDesc(), StreamDesc)
+
+    FD3D12Pipeline Pipeline;
+    Pipeline.Type = ED3D12PipelineType::Compute;
+    Pipeline.ThreadGroupSize = ComputeShader->Reflection.ThreadGroupSize;
+
+    RESULT_TRY_PLATFORM_CALL(Device->CreatePipelineState(&StreamDesc, IID_PPV_ARGS(&Pipeline.PipelineState)), "Failed to create compute pipeline")
+    SetD3D12DebugName(Pipeline.PipelineState.Get(), DebugName);
+
+    return Pipelines.Allocate(std::move(Pipeline));
 }
 
 TResult<TUniquePtr<IGfxSwapchain>> FD3D12GfxDevice::CreateSwapchain(const FGfxSwapchainDesc& SwapchainDesc)
@@ -914,6 +1093,21 @@ void FD3D12GfxDevice::UnregisterSwapchainImage(const FGfxTextureHandle TextureHa
     }
 }
 
+ID3D12CommandSignature* FD3D12GfxDevice::GetDrawIndexedSignature() const
+{
+    return DrawIndexedSignature.Get();
+}
+
+ID3D12CommandSignature* FD3D12GfxDevice::GetDispatchSignature() const
+{
+    return DispatchSignature.Get();
+}
+
+ID3D12CommandSignature* FD3D12GfxDevice::GetDispatchMeshSignature() const
+{
+    return DispatchMeshSignature.Get();
+}
+
 IDXGIFactory7* FD3D12GfxDevice::GetFactory() const
 {
     return Factory.Get();
@@ -987,6 +1181,97 @@ FResult FD3D12GfxDevice::FindSuitableAdapter()
     }
     Adapter = TempAdapter;
     return RESULT_OK_EMPTY();
+}
+
+void FD3D12GfxDevice::EnableDebugLayers()
+{
+    if (DeviceDesc.bEnableDebugLayer)
+    {
+        TComPtr<ID3D12Debug1> Debug;
+        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&Debug))))
+        {
+            Debug->EnableDebugLayer();
+            if (DeviceDesc.bEnableGpuValidation)
+            {
+                Debug->SetEnableGPUBasedValidation(TRUE);
+            }
+        }
+        else
+        {
+            std::println("D3D12 debug layer unavailable (install the Windows 'Graphics Tools' optional feature)");
+        }
+    }
+
+    if (DeviceDesc.bEnableCrashDiagnostics)
+    {
+        TComPtr<ID3D12DeviceRemovedExtendedDataSettings1> DredSettings;
+        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&DredSettings))))
+        {
+            DredSettings->SetAutoBreadcrumbsEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+            DredSettings->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+            DredSettings->SetBreadcrumbContextEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
+        }
+    }
+}
+
+void FD3D12GfxDevice::SetupInfoQueue()
+{
+    if (!DeviceDesc.bEnableDebugLayer)
+    {
+        return;
+    }
+
+    TComPtr<ID3D12InfoQueue> BaseInfoQueue;
+    if (FAILED(Device.As(&BaseInfoQueue)))
+    {
+        return;
+    }
+    if (IsDebuggerPresent())
+    {
+        BaseInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+        BaseInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+    }
+
+    if (FAILED(Device.As(&InfoQueue)))
+    {
+        std::println("ID3D12InfoQueue1 unavailable: D3D12 messages only appear in the debugger output");
+        return;
+    }
+
+    const auto OnMessage = [](D3D12_MESSAGE_CATEGORY, const D3D12_MESSAGE_SEVERITY Severity, const D3D12_MESSAGE_ID Id, const LPCSTR Description, void*)
+    {
+        const char* SeverityName = "INFO";
+        switch (Severity)
+        {
+        case D3D12_MESSAGE_SEVERITY_CORRUPTION: SeverityName = "CORRUPTION";
+            break;
+        case D3D12_MESSAGE_SEVERITY_ERROR: SeverityName = "ERROR";
+            break;
+        case D3D12_MESSAGE_SEVERITY_WARNING: SeverityName = "WARNING";
+            break;
+        case D3D12_MESSAGE_SEVERITY_INFO:
+            return;
+        case D3D12_MESSAGE_SEVERITY_MESSAGE: SeverityName = "MESSAGE";
+            break;
+        }
+        std::println("[D3D12 {}] ({}) {}", SeverityName, static_cast<int32>(Id), Description);
+    };
+
+    if (FAILED(InfoQueue->RegisterMessageCallback(OnMessage, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, &InfoQueueCallbackCookie)))
+    {
+        std::println("Failed to register the D3D12 message callback");
+        InfoQueue.Reset();
+    }
+}
+
+void FD3D12GfxDevice::ShutdownInfoQueue()
+{
+    if (InfoQueue)
+    {
+        InfoQueue->UnregisterMessageCallback(InfoQueueCallbackCookie);
+        InfoQueueCallbackCookie = 0;
+        InfoQueue.Reset();
+    }
 }
 
 FResult FD3D12GfxDevice::CreateDevice()
@@ -1345,4 +1630,127 @@ void FD3D12GfxDevice::FreeDescriptorsNow(const uint32 SrvIndex, const uint32 Uav
     FD3D12DescriptorHeap& ResourceHeap = GetDescriptorHeap(ED3D12DescriptorHeapType::Resource);
     ResourceHeap.Free(SrvIndex);
     ResourceHeap.Free(UavIndex);
+}
+
+void FD3D12GfxDevice::LoadShaderCompiler()
+{
+    ShaderCompilerModule = LoadLibraryW(L"dxcompiler.dll");
+    if (ShaderCompilerModule == nullptr)
+    {
+        std::println("dxcompiler.dll not found: shaders are created without reflection or binding validation");
+        return;
+    }
+
+    const auto CreateInstance = reinterpret_cast<DxcCreateInstanceProc>(GetProcAddress(ShaderCompilerModule, "DxcCreateInstance"));
+    if (CreateInstance == nullptr || FAILED(CreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&DxcUtils))))
+    {
+        std::println("dxcompiler.dll has no usable DxcCreateInstance: shaders are created without reflection");
+        UnloadShaderCompiler();
+    }
+}
+
+void FD3D12GfxDevice::UnloadShaderCompiler()
+{
+    DxcUtils.Reset();
+    if (ShaderCompilerModule != nullptr)
+    {
+        FreeLibrary(ShaderCompilerModule);
+        ShaderCompilerModule = nullptr;
+    }
+}
+
+TResult<FD3D12ShaderReflection> FD3D12GfxDevice::ReflectShader(TSpan<const byte8> Bytecode, const EGfxShaderStage Stage)
+{
+    FD3D12ShaderReflection Result;
+    if (!DxcUtils)
+    {
+        return RESULT_OK(Result);
+    }
+
+    const DxcBuffer Buffer = {.Ptr = Bytecode.data(), .Size = Bytecode.size(), .Encoding = 0};
+    TComPtr<ID3D12ShaderReflection> Reflection;
+    {
+        std::scoped_lock Lock(DxcMutex);
+        if (FAILED(DxcUtils->CreateReflection(&Buffer, IID_PPV_ARGS(&Reflection))))
+        {
+            std::println("Shader has no reflection data (compiled with -Qstrip_reflect?); skipping validation");
+            return RESULT_OK(Result);
+        }
+    }
+
+    D3D12_SHADER_DESC ShaderDesc = {};
+    RESULT_TRY_PLATFORM_CALL(Reflection->GetDesc(&ShaderDesc), "Failed to read shader reflection")
+
+    const uint32 ProgramType = D3D12_SHVER_GET_TYPE(ShaderDesc.Version);
+    Result.ShaderModelMajor = D3D12_SHVER_GET_MAJOR(ShaderDesc.Version);
+    Result.ShaderModelMinor = D3D12_SHVER_GET_MINOR(ShaderDesc.Version);
+
+    if (ProgramType != static_cast<uint32>(ToShaderVersionType(Stage)))
+    {
+        return RESULT_ERROR("Shader bytecode doesn't match FGfxShaderDesc::Stage");
+    }
+    if (Result.ShaderModelMajor < 6 || (Result.ShaderModelMajor == 6 && Result.ShaderModelMinor < 6))
+    {
+        return RESULT_ERROR("Shaders must be compiled for shader model 6.6 or higher (ResourceDescriptorHeap)");
+    }
+
+    for (uint32 Index = 0; Index < ShaderDesc.BoundResources; ++Index)
+    {
+        D3D12_SHADER_INPUT_BIND_DESC BindDesc = {};
+        RESULT_TRY_PLATFORM_CALL(Reflection->GetResourceBindingDesc(Index, &BindDesc), "Failed to read shader bindings")
+
+        const bool8 bIsRootCbv = BindDesc.Type == D3D_SIT_CBUFFER && BindDesc.Space == 0 && BindDesc.BindPoint <= 3 && BindDesc.BindCount == 1;
+        if (!bIsRootCbv)
+        {
+            const FString Message = String::Format(
+                "Shader binding '{}' isn't part of the global root signature; access resources through ResourceDescriptorHeap[] / SamplerDescriptorHeap[]",
+                BindDesc.Name);
+            return RESULT_ERROR(Message);
+        }
+
+        if (BindDesc.BindPoint == 0)
+        {
+            ID3D12ShaderReflectionConstantBuffer* PushConstants = Reflection->GetConstantBufferByName(BindDesc.Name);
+            D3D12_SHADER_BUFFER_DESC BufferDesc = {};
+            RESULT_TRY_PLATFORM_CALL(PushConstants->GetDesc(&BufferDesc), "Failed to read the push constant layout")
+            Result.PushConstantSize = BufferDesc.Size;
+            if (Result.PushConstantSize > GfxMaxPushConstantsSize)
+            {
+                return RESULT_ERROR("Push constants (cbuffer at b0) exceed GfxMaxPushConstantsSize");
+            }
+        }
+    }
+
+    if (HasThreadGroups(Stage))
+    {
+        Reflection->GetThreadGroupSize(&Result.ThreadGroupSize[0], &Result.ThreadGroupSize[1], &Result.ThreadGroupSize[2]);
+    }
+
+    Result.bIsValid = true;
+    return RESULT_OK(Result);
+}
+
+FResult FD3D12GfxDevice::CreateCommandSignatures()
+{
+    const auto CreateSignature = [this](const D3D12_INDIRECT_ARGUMENT_TYPE Type, const uint32 Stride, TComPtr<ID3D12CommandSignature>& OutSignature, const wchar_t* Name) -> FResult
+    {
+        const D3D12_INDIRECT_ARGUMENT_DESC Argument = {.Type = Type};
+        const D3D12_COMMAND_SIGNATURE_DESC Desc = {
+            .ByteStride = Stride,
+            .NumArgumentDescs = 1,
+            .pArgumentDescs = &Argument,
+            .NodeMask = 0,
+        };
+        RESULT_TRY_PLATFORM_CALL(Device->CreateCommandSignature(&Desc, nullptr, IID_PPV_ARGS(&OutSignature)), "Failed to create command signature")
+        OutSignature->SetName(Name);
+        return RESULT_OK_EMPTY();
+    };
+
+    RESULT_CHECK(CreateSignature(D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED, sizeof(D3D12_DRAW_INDEXED_ARGUMENTS), DrawIndexedSignature, L"DrawIndexedSignature"))
+    RESULT_CHECK(CreateSignature(D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH, sizeof(D3D12_DISPATCH_ARGUMENTS), DispatchSignature, L"DispatchSignature"))
+    if (Capabilities.bSupportsMeshShaders)
+    {
+        RESULT_CHECK(CreateSignature(D3D12_INDIRECT_ARGUMENT_TYPE_DISPATCH_MESH, sizeof(D3D12_DISPATCH_MESH_ARGUMENTS), DispatchMeshSignature, L"DispatchMeshSignature"))
+    }
+    return RESULT_OK_EMPTY();
 }

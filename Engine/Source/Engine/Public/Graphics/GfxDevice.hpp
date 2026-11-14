@@ -64,6 +64,8 @@ public:
     virtual void DestroyBuffer(FGfxBufferHandle BufferHandle) = 0;
     virtual void DestroyTexture(FGfxTextureHandle TextureHandle) = 0;
     virtual void DestroyTextureView(FGfxTextureViewHandle TextureViewHandle) = 0;
+    virtual void DestroyShader(FGfxShaderHandle ShaderHandle) = 0;
+    virtual void DestroyPipeline(FGfxPipelineHandle PipelineHandle) = 0;
 
     [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxBufferHandle BufferHandle, EGfxViewType ViewType = EGfxViewType::ShaderResource) const = 0;
     [[nodiscard]] virtual uint32 GetBindlessIndex(FGfxTextureHandle TextureHandle, EGfxViewType ViewType = EGfxViewType::ShaderResource) const = 0;
@@ -73,9 +75,9 @@ public:
     [[nodiscard]] virtual TSpan<byte8> Map(FGfxBufferHandle BufferHandle) = 0;
     [[nodiscard]] virtual FGfxTextureCopyLayout GetCopyLayout(FGfxTextureHandle TextureHandle, uint32 Subresource) const = 0;
 
-    // virtual TResult<FGfxShaderHandle> CreateShader(const FGfxShaderDesc& ShaderDesc) = 0;
-    // virtual TResult<FGfxPipelineHandle> CreateGraphicsPipeline(const FGfxGraphicsPipelineDesc& GraphicsPipelineDesc, FStringView DebugName = "UnnamedGraphicsPipeline") = 0;
-    // virtual TResult<FGfxPipelineHandle> CreateComputePipeline(const FGfxComputePipelineDesc& ComputePipelineDesc, FStringView DebugName = "UnnamedComputePipeline") = 0;
+    virtual TResult<FGfxShaderHandle> CreateShader(const FGfxShaderDesc& ShaderDesc) = 0;
+    virtual TResult<FGfxPipelineHandle> CreateGraphicsPipeline(const FGfxGraphicsPipelineDesc& GraphicsPipelineDesc, FStringView DebugName = "UnnamedGraphicsPipeline") = 0;
+    virtual TResult<FGfxPipelineHandle> CreateComputePipeline(const FGfxComputePipelineDesc& ComputePipelineDesc, FStringView DebugName = "UnnamedComputePipeline") = 0;
 
     virtual TResult<TUniquePtr<IGfxSwapchain>> CreateSwapchain(const FGfxSwapchainDesc& SwapchainDesc) = 0;
 

@@ -10,6 +10,9 @@
 
 #include <d3dx12/d3dx12.h>
 
+#include <d3d12shader.h>
+#include <dxcapi.h>
+
 #include <wrl.h>
 
 template <typename T>

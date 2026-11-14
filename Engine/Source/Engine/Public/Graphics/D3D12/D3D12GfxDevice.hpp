@@ -41,6 +41,8 @@ public:
     void DestroyBuffer(FGfxBufferHandle BufferHandle) override;
     void DestroyTexture(FGfxTextureHandle TextureHandle) override;
     void DestroyTextureView(FGfxTextureViewHandle TextureViewHandle) override;
+    void DestroyShader(FGfxShaderHandle ShaderHandle) override;
+    void DestroyPipeline(FGfxPipelineHandle PipelineHandle) override;
 
     [[nodiscard]] uint32 GetBindlessIndex(FGfxBufferHandle BufferHandle, EGfxViewType ViewType) const override;
     [[nodiscard]] uint32 GetBindlessIndex(FGfxTextureHandle TextureHandle, EGfxViewType ViewType) const override;
@@ -59,9 +61,9 @@ public:
     [[nodiscard]] TSpan<byte8> Map(FGfxBufferHandle BufferHandle) override;
     [[nodiscard]] FGfxTextureCopyLayout GetCopyLayout(FGfxTextureHandle TextureHandle, uint32 Subresource) const override;
 
-    // TResult<FGfxShaderHandle> CreateShader(const FGfxShaderDesc& ShaderDesc) override;
-    // TResult<FGfxPipelineHandle> CreateGraphicsPipeline(const FGfxGraphicsPipelineDesc& GraphicsPipelineDesc, FStringView DebugName) override;
-    // TResult<FGfxPipelineHandle> CreateComputePipeline(const FGfxComputePipelineDesc& ComputePipelineDesc, FStringView DebugName) override;
+    TResult<FGfxShaderHandle> CreateShader(const FGfxShaderDesc& ShaderDesc) override;
+    TResult<FGfxPipelineHandle> CreateGraphicsPipeline(const FGfxGraphicsPipelineDesc& GraphicsPipelineDesc, FStringView DebugName) override;
+    TResult<FGfxPipelineHandle> CreateComputePipeline(const FGfxComputePipelineDesc& ComputePipelineDesc, FStringView DebugName) override;
 
     TResult<TUniquePtr<IGfxSwapchain>> CreateSwapchain(const FGfxSwapchainDesc& SwapchainDesc) override;
 
@@ -81,6 +83,10 @@ public:
     [[nodiscard]] TResult<FGfxTextureHandle> RegisterSwapchainImage(TComPtr<ID3D12Resource> Resource, EGfxFormat Format, FStringView DebugName);
     void UnregisterSwapchainImage(FGfxTextureHandle TextureHandle);
 
+    [[nodiscard]] ID3D12CommandSignature* GetDrawIndexedSignature() const;
+    [[nodiscard]] ID3D12CommandSignature* GetDispatchSignature() const;
+    [[nodiscard]] ID3D12CommandSignature* GetDispatchMeshSignature() const;
+
     [[nodiscard]] IDXGIFactory7* GetFactory() const;
     [[nodiscard]] const FGfxDeviceCapabilities& GetCapabilities() const;
     [[nodiscard]] uint32 GetFramesInFlight() const;
@@ -90,7 +96,10 @@ public:
 private:
     FResult AcquireFactory();
     FResult FindSuitableAdapter();
+    void EnableDebugLayers();
     FResult CreateDevice();
+    void SetupInfoQueue();
+    void ShutdownInfoQueue();
     FResult CheckFeatureSupport();
     FResult CreateQueues();
     void CreateCommandListPools();
@@ -107,6 +116,13 @@ private:
     FResult CreateTextureDefaultViews(FD3D12Texture& Texture);
     void FreeDescriptorsNow(uint32 SrvIndex, uint32 UavIndex);
 
+    void LoadShaderCompiler();
+    void UnloadShaderCompiler();
+
+    [[nodiscard]] TResult<FD3D12ShaderReflection> ReflectShader(TSpan<const byte8> Bytecode, EGfxShaderStage Stage);
+
+    FResult CreateCommandSignatures();
+
 private:
     bool8 bIsInitialized = false;
 
@@ -117,6 +133,9 @@ private:
 
     D3D_FEATURE_LEVEL FeatureLevel = D3D_FEATURE_LEVEL_12_0;
     TComPtr<ID3D12Device15> Device;
+
+    TComPtr<ID3D12InfoQueue1> InfoQueue;
+    DWORD InfoQueueCallbackCookie = 0;
 
     FGfxDeviceCapabilities Capabilities = {};
 
@@ -143,4 +162,12 @@ private:
 
     std::mutex SamplerCacheMutex;
     TUnorderedMap<FGfxSamplerDesc, FGfxSamplerHandle, FGfxSamplerDescHasher> SamplerCache;
+
+    HMODULE ShaderCompilerModule = nullptr;
+    TComPtr<IDxcUtils> DxcUtils;
+    std::mutex DxcMutex;
+
+    TComPtr<ID3D12CommandSignature> DrawIndexedSignature;
+    TComPtr<ID3D12CommandSignature> DispatchSignature;
+    TComPtr<ID3D12CommandSignature> DispatchMeshSignature;
 };

@@ -7,6 +7,7 @@
 #include "Core/Utility/Result.hpp"
 #include "Graphics/GfxBarriers.hpp"
 #include "Graphics/GfxCommandList.hpp"
+#include "Graphics/GfxPipelines.hpp"
 #include "Graphics/GfxTypes.hpp"
 
 struct FD3D12FormatInfo
@@ -39,6 +40,14 @@ struct FD3D12FormatInfo
 [[nodiscard]] TResult<FGfxSubresourceRange> ResolveSubresourceRange(const FGfxTextureDesc& Desc, const FGfxSubresourceRange& Range);
 
 [[nodiscard]] D3D12_BARRIER_SUBRESOURCE_RANGE ToD3D12BarrierRange(const FGfxTextureDesc& Desc, const FGfxSubresourceRange& ResolvedRange);
+
+[[nodiscard]] D3D12_COMPARISON_FUNC ToD3D12ComparisonFunc(EGfxCompareOp CompareOp);
+
+[[nodiscard]] D3D12_RASTERIZER_DESC ToD3D12RasterizerDesc(const FGfxRasterState& RasterState);
+[[nodiscard]] D3D12_DEPTH_STENCIL_DESC ToD3D12DepthStencilDesc(const FGfxDepthStencilState& DepthStencilState, bool8 bHasDepthTarget);
+[[nodiscard]] D3D12_BLEND_DESC ToD3D12BlendDesc(const FGfxBlendState& BlendState);
+[[nodiscard]] D3D12_PRIMITIVE_TOPOLOGY_TYPE ToD3D12TopologyType(EGfxPrimitiveTopology Topology);
+[[nodiscard]] D3D_PRIMITIVE_TOPOLOGY ToD3D12Topology(EGfxPrimitiveTopology Topology);
 
 [[nodiscard]] constexpr uint64 AlignUp(const uint64 Value, const uint64 Alignment)
 {

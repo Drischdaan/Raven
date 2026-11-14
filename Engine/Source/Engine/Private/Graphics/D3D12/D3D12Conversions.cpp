@@ -40,7 +40,8 @@ namespace
         case EGfxSamplerReduction::Comparison: return D3D12_FILTER_REDUCTION_TYPE_COMPARISON;
         case EGfxSamplerReduction::Minimum: return D3D12_FILTER_REDUCTION_TYPE_MINIMUM;
         case EGfxSamplerReduction::Maximum: return D3D12_FILTER_REDUCTION_TYPE_MAXIMUM;
-        default: return D3D12_FILTER_REDUCTION_TYPE_STANDARD;
+        default:
+            return D3D12_FILTER_REDUCTION_TYPE_STANDARD;
         }
     }
 
@@ -53,23 +54,8 @@ namespace
         case EGfxAddressMode::Clamp: return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
         case EGfxAddressMode::Border: return D3D12_TEXTURE_ADDRESS_MODE_BORDER;
         case EGfxAddressMode::MirrorOnce: return D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE;
-        default: return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-        }
-    }
-
-    D3D12_COMPARISON_FUNC ToD3D12ComparisonFunc(const EGfxCompareOp CompareOp)
-    {
-        switch (CompareOp)
-        {
-        case EGfxCompareOp::Never: return D3D12_COMPARISON_FUNC_NEVER;
-        case EGfxCompareOp::Less: return D3D12_COMPARISON_FUNC_LESS;
-        case EGfxCompareOp::Equal: return D3D12_COMPARISON_FUNC_EQUAL;
-        case EGfxCompareOp::LessEqual: return D3D12_COMPARISON_FUNC_LESS_EQUAL;
-        case EGfxCompareOp::Greater: return D3D12_COMPARISON_FUNC_GREATER;
-        case EGfxCompareOp::NotEqual: return D3D12_COMPARISON_FUNC_NOT_EQUAL;
-        case EGfxCompareOp::GreaterEqual: return D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-        case EGfxCompareOp::Always: return D3D12_COMPARISON_FUNC_ALWAYS;
-        default: return D3D12_COMPARISON_FUNC_NEVER;
+        default:
+            return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
         }
     }
 
@@ -77,6 +63,69 @@ namespace
     TNative OrFlags(const TNative A, const TNative B)
     {
         return static_cast<TNative>(static_cast<uint32>(A) | static_cast<uint32>(B));
+    }
+
+    D3D12_STENCIL_OP ToD3D12StencilOp(const EGfxStencilOp StencilOp)
+    {
+        switch (StencilOp)
+        {
+        case EGfxStencilOp::Keep: return D3D12_STENCIL_OP_KEEP;
+        case EGfxStencilOp::Zero: return D3D12_STENCIL_OP_ZERO;
+        case EGfxStencilOp::Replace: return D3D12_STENCIL_OP_REPLACE;
+        case EGfxStencilOp::IncrementClamp: return D3D12_STENCIL_OP_INCR_SAT;
+        case EGfxStencilOp::DecrementClamp: return D3D12_STENCIL_OP_DECR_SAT;
+        case EGfxStencilOp::Invert: return D3D12_STENCIL_OP_INVERT;
+        case EGfxStencilOp::IncrementWrap: return D3D12_STENCIL_OP_INCR;
+        case EGfxStencilOp::DecrementWrap: return D3D12_STENCIL_OP_DECR;
+        default:
+            return D3D12_STENCIL_OP_KEEP;
+        }
+    }
+
+    D3D12_DEPTH_STENCILOP_DESC ToD3D12StencilFace(const FGfxStencilFaceState& Face)
+    {
+        return D3D12_DEPTH_STENCILOP_DESC{
+            .StencilFailOp = ToD3D12StencilOp(Face.FailOp),
+            .StencilDepthFailOp = ToD3D12StencilOp(Face.DepthFailOp),
+            .StencilPassOp = ToD3D12StencilOp(Face.PassOp),
+            .StencilFunc = ToD3D12ComparisonFunc(Face.CompareOp),
+        };
+    }
+
+    D3D12_BLEND ToD3D12Blend(const EGfxBlendFactor Factor)
+    {
+        switch (Factor)
+        {
+        case EGfxBlendFactor::Zero: return D3D12_BLEND_ZERO;
+        case EGfxBlendFactor::One: return D3D12_BLEND_ONE;
+        case EGfxBlendFactor::SourceColor: return D3D12_BLEND_SRC_COLOR;
+        case EGfxBlendFactor::InverseSourceColor: return D3D12_BLEND_INV_SRC_COLOR;
+        case EGfxBlendFactor::SourceAlpha: return D3D12_BLEND_SRC_ALPHA;
+        case EGfxBlendFactor::InverseSourceAlpha: return D3D12_BLEND_INV_SRC_ALPHA;
+        case EGfxBlendFactor::DestinationColor: return D3D12_BLEND_DEST_COLOR;
+        case EGfxBlendFactor::InverseDestinationColor: return D3D12_BLEND_INV_DEST_COLOR;
+        case EGfxBlendFactor::DestinationAlpha: return D3D12_BLEND_DEST_ALPHA;
+        case EGfxBlendFactor::InverseDestinationAlpha: return D3D12_BLEND_INV_DEST_ALPHA;
+        case EGfxBlendFactor::SourceAlphaSaturate: return D3D12_BLEND_SRC_ALPHA_SAT;
+        case EGfxBlendFactor::BlendConstant: return D3D12_BLEND_BLEND_FACTOR;
+        case EGfxBlendFactor::InverseBlendConstant: return D3D12_BLEND_INV_BLEND_FACTOR;
+        default:
+            return D3D12_BLEND_ONE;
+        }
+    }
+
+    D3D12_BLEND_OP ToD3D12BlendOp(const EGfxBlendOp BlendOp)
+    {
+        switch (BlendOp)
+        {
+        case EGfxBlendOp::Add: return D3D12_BLEND_OP_ADD;
+        case EGfxBlendOp::Subtract: return D3D12_BLEND_OP_SUBTRACT;
+        case EGfxBlendOp::ReverseSubtract: return D3D12_BLEND_OP_REV_SUBTRACT;
+        case EGfxBlendOp::Min: return D3D12_BLEND_OP_MIN;
+        case EGfxBlendOp::Max: return D3D12_BLEND_OP_MAX;
+        default:
+            return D3D12_BLEND_OP_ADD;
+        }
     }
 }
 
@@ -361,6 +410,112 @@ D3D12_BARRIER_SUBRESOURCE_RANGE ToD3D12BarrierRange(const FGfxTextureDesc& Desc,
         .FirstPlane = FirstPlane,
         .NumPlanes = NumPlanes,
     };
+}
+
+D3D12_COMPARISON_FUNC ToD3D12ComparisonFunc(const EGfxCompareOp CompareOp)
+{
+    switch (CompareOp)
+    {
+    case EGfxCompareOp::Never: return D3D12_COMPARISON_FUNC_NEVER;
+    case EGfxCompareOp::Less: return D3D12_COMPARISON_FUNC_LESS;
+    case EGfxCompareOp::Equal: return D3D12_COMPARISON_FUNC_EQUAL;
+    case EGfxCompareOp::LessEqual: return D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    case EGfxCompareOp::Greater: return D3D12_COMPARISON_FUNC_GREATER;
+    case EGfxCompareOp::NotEqual: return D3D12_COMPARISON_FUNC_NOT_EQUAL;
+    case EGfxCompareOp::GreaterEqual: return D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+    case EGfxCompareOp::Always: return D3D12_COMPARISON_FUNC_ALWAYS;
+    default: return D3D12_COMPARISON_FUNC_NEVER;
+    }
+}
+
+D3D12_RASTERIZER_DESC ToD3D12RasterizerDesc(const FGfxRasterState& RasterState)
+{
+    D3D12_RASTERIZER_DESC Desc = {};
+    Desc.FillMode = RasterState.FillMode == EGfxFillMode::Wireframe ? D3D12_FILL_MODE_WIREFRAME : D3D12_FILL_MODE_SOLID;
+    switch (RasterState.CullMode)
+    {
+    case EGfxCullMode::None: Desc.CullMode = D3D12_CULL_MODE_NONE;
+        break;
+    case EGfxCullMode::Front: Desc.CullMode = D3D12_CULL_MODE_FRONT;
+        break;
+    case EGfxCullMode::Back: Desc.CullMode = D3D12_CULL_MODE_BACK;
+        break;
+    }
+    Desc.FrontCounterClockwise = RasterState.FrontFace == EGfxFrontFace::CounterClockwise;
+    Desc.DepthBias = RasterState.DepthBias;
+    Desc.DepthBiasClamp = RasterState.DepthBiasClamp;
+    Desc.SlopeScaledDepthBias = RasterState.SlopeScaledDepthBias;
+    Desc.DepthClipEnable = RasterState.bDepthClipEnable;
+    Desc.MultisampleEnable = FALSE;
+    Desc.AntialiasedLineEnable = FALSE;
+    Desc.ForcedSampleCount = 0;
+    Desc.ConservativeRaster = RasterState.bConservativeRasterization ? D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON : D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+    return Desc;
+}
+
+D3D12_DEPTH_STENCIL_DESC ToD3D12DepthStencilDesc(const FGfxDepthStencilState& DepthStencilState, const bool8 bHasDepthTarget)
+{
+    D3D12_DEPTH_STENCIL_DESC Desc = {};
+    Desc.DepthEnable = bHasDepthTarget && DepthStencilState.bDepthTestEnable;
+    Desc.DepthWriteMask = (bHasDepthTarget && DepthStencilState.bDepthWriteEnable) ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
+    Desc.DepthFunc = ToD3D12ComparisonFunc(DepthStencilState.DepthCompareOp);
+    Desc.StencilEnable = bHasDepthTarget && DepthStencilState.bStencilEnable;
+    Desc.StencilReadMask = DepthStencilState.StencilReadMask;
+    Desc.StencilWriteMask = DepthStencilState.StencilWriteMask;
+    Desc.FrontFace = ToD3D12StencilFace(DepthStencilState.FrontFace);
+    Desc.BackFace = ToD3D12StencilFace(DepthStencilState.BackFace);
+    return Desc;
+}
+
+D3D12_BLEND_DESC ToD3D12BlendDesc(const FGfxBlendState& BlendState)
+{
+    D3D12_BLEND_DESC Desc = {};
+    Desc.AlphaToCoverageEnable = BlendState.bAlphaToCoverageEnable;
+    Desc.IndependentBlendEnable = TRUE;
+    for (uint32 Index = 0; Index < GfxMaxRenderTargets; ++Index)
+    {
+        const FGfxRenderTargetBlendState& Source = BlendState.RenderTargets[Index];
+        D3D12_RENDER_TARGET_BLEND_DESC& Target = Desc.RenderTarget[Index];
+        Target.BlendEnable = Source.bBlendEnable;
+        Target.LogicOpEnable = FALSE;
+        Target.SrcBlend = ToD3D12Blend(Source.SourceColor);
+        Target.DestBlend = ToD3D12Blend(Source.DestinationColor);
+        Target.BlendOp = ToD3D12BlendOp(Source.ColorOp);
+        Target.SrcBlendAlpha = ToD3D12Blend(Source.SourceAlpha);
+        Target.DestBlendAlpha = ToD3D12Blend(Source.DestinationAlpha);
+        Target.BlendOpAlpha = ToD3D12BlendOp(Source.AlphaOp);
+        Target.LogicOp = D3D12_LOGIC_OP_NOOP;
+        Target.RenderTargetWriteMask = std::to_underlying(Source.WriteMask);
+    }
+    return Desc;
+}
+
+D3D12_PRIMITIVE_TOPOLOGY_TYPE ToD3D12TopologyType(const EGfxPrimitiveTopology Topology)
+{
+    switch (Topology)
+    {
+    case EGfxPrimitiveTopology::PointList: return D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+    case EGfxPrimitiveTopology::LineList:
+    case EGfxPrimitiveTopology::LineStrip: return D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+    case EGfxPrimitiveTopology::TriangleList:
+    case EGfxPrimitiveTopology::TriangleStrip: return D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    default:
+        return D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    }
+}
+
+D3D_PRIMITIVE_TOPOLOGY ToD3D12Topology(const EGfxPrimitiveTopology Topology)
+{
+    switch (Topology)
+    {
+    case EGfxPrimitiveTopology::PointList: return D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+    case EGfxPrimitiveTopology::LineList: return D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+    case EGfxPrimitiveTopology::LineStrip: return D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+    case EGfxPrimitiveTopology::TriangleList: return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    case EGfxPrimitiveTopology::TriangleStrip: return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+    default:
+        return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    }
 }
 
 void SetD3D12DebugName(ID3D12Object* Object, const FStringView Name)

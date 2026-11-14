@@ -418,8 +418,31 @@ void FD3D12GfxCommandList::EndRendering()
     bIsInRenderPass = false;
 }
 
-void FD3D12GfxCommandList::SetPipeline(FGfxPipelineHandle PipelineHandle)
+void FD3D12GfxCommandList::SetPipeline(const FGfxPipelineHandle PipelineHandle)
 {
+    const FD3D12Pipeline* Pipeline = Device->GetPipeline(PipelineHandle);
+    if (Pipeline == nullptr)
+    {
+        std::println("SetPipeline: invalid or stale pipeline handle");
+        return;
+    }
+    if (QueueType == EGfxQueueType::Copy)
+    {
+        std::println("SetPipeline: not allowed on copy command lists");
+        return;
+    }
+    if (Pipeline->Type != ED3D12PipelineType::Compute && QueueType != EGfxQueueType::Graphics)
+    {
+        std::println("SetPipeline: graphics pipelines need a graphics command list");
+        return;
+    }
+
+    CommandList->SetPipelineState(Pipeline->PipelineState.Get());
+    bIsComputePipelineBound = Pipeline->Type == ED3D12PipelineType::Compute;
+    if (Pipeline->Type == ED3D12PipelineType::Graphics)
+    {
+        CommandList->IASetPrimitiveTopology(Pipeline->Topology);
+    }
 }
 
 void FD3D12GfxCommandList::SetViewport(const FGfxViewport& Viewport)
@@ -529,8 +552,22 @@ void FD3D12GfxCommandList::DrawIndexed(const uint32 IndexCount, const uint32 Ins
     CommandList->DrawIndexedInstanced(IndexCount, InstanceCount, FirstIndex, static_cast<INT>(VertexOffset), FirstInstance);
 }
 
-void FD3D12GfxCommandList::DrawIndexedIndirect(FGfxBufferHandle ArgumentsBufferHandle, uint64 ArgumentsOffset, uint32 MaxCount, FGfxBufferHandle CountBufferHandle, uint64 CountOffset)
+void FD3D12GfxCommandList::DrawIndexedIndirect(const FGfxBufferHandle ArgumentsBufferHandle, const uint64 ArgumentsOffset, const uint32 MaxCount, const FGfxBufferHandle CountBufferHandle,
+                                               const uint64 CountOffset)
 {
+    const FD3D12Buffer* Arguments = Device->GetBuffer(ArgumentsBufferHandle);
+    if (Arguments == nullptr)
+    {
+        std::println("DrawIndexedIndirect: invalid or stale arguments buffer");
+        return;
+    }
+    const FD3D12Buffer* Count = CountBufferHandle.IsValid() ? Device->GetBuffer(CountBufferHandle) : nullptr;
+    if (CountBufferHandle.IsValid() && Count == nullptr)
+    {
+        std::println("DrawIndexedIndirect: invalid or stale count buffer");
+        return;
+    }
+    CommandList->ExecuteIndirect(Device->GetDrawIndexedSignature(), MaxCount, Arguments->Resource.Get(), ArgumentsOffset, Count != nullptr ? Count->Resource.Get() : nullptr, CountOffset);
 }
 
 void FD3D12GfxCommandList::Dispatch(const uint32 X, const uint32 Y, const uint32 Z)
@@ -538,8 +575,15 @@ void FD3D12GfxCommandList::Dispatch(const uint32 X, const uint32 Y, const uint32
     CommandList->Dispatch(X, Y, Z);
 }
 
-void FD3D12GfxCommandList::DispatchIndirect(FGfxBufferHandle ArgumentsBufferHandle, uint64 ArgumentsOffset)
+void FD3D12GfxCommandList::DispatchIndirect(const FGfxBufferHandle ArgumentsBufferHandle, const uint64 ArgumentsOffset)
 {
+    const FD3D12Buffer* Arguments = Device->GetBuffer(ArgumentsBufferHandle);
+    if (Arguments == nullptr)
+    {
+        std::println("DispatchIndirect: invalid or stale arguments buffer");
+        return;
+    }
+    CommandList->ExecuteIndirect(Device->GetDispatchSignature(), 1, Arguments->Resource.Get(), ArgumentsOffset, nullptr, 0);
 }
 
 void FD3D12GfxCommandList::DispatchMesh(const uint32 X, const uint32 Y, const uint32 Z)
