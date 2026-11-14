@@ -3,6 +3,7 @@
 #pragma once
 
 #include "D3D12Include.hpp"
+#include "Core/Memory/Containers/Vector.hpp"
 #include "Graphics/GfxCommandList.hpp"
 
 class FD3D12GfxDevice;
@@ -11,6 +12,7 @@ class RAVEN_API FD3D12GfxCommandList final : public IGfxCommandList
 {
 public:
     FD3D12GfxCommandList(FD3D12GfxDevice& InDevice, EGfxQueueType InQueueType, TComPtr<ID3D12GraphicsCommandList10> InCommandList);
+    ~FD3D12GfxCommandList() override;
 
 public:
     void Begin(TComPtr<ID3D12CommandAllocator> InAllocator);
@@ -53,6 +55,9 @@ public:
     [[nodiscard]] FGfxTransientAllocation AllocateTransient(uint64 Size, uint64 Alignment) override;
 
 private:
+    [[nodiscard]] bool8 EnsureScratchDescriptors();
+
+private:
     FD3D12GfxDevice* Device = nullptr;
     EGfxQueueType QueueType = EGfxQueueType::Graphics;
     TComPtr<ID3D12GraphicsCommandList10> CommandList;
@@ -60,4 +65,13 @@ private:
 
     bool8 bIsRecording = false;
     bool8 bIsComputePipelineBound = false;
+
+    bool8 bIsInRenderPass = false;
+    bool8 bHasScratchDescriptors = false;
+    TArray<uint32, GfxMaxRenderTargets> ScratchRtvIndices = {};
+    uint32 ScratchDsvIndex = GfxInvalidBindlessIndex;
+
+    TVector<D3D12_GLOBAL_BARRIER> GlobalBarrierScratch;
+    TVector<D3D12_BUFFER_BARRIER> BufferBarrierScratch;
+    TVector<D3D12_TEXTURE_BARRIER> TextureBarrierScratch;
 };

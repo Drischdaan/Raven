@@ -21,13 +21,12 @@ struct RAVEN_API FD3D12Buffer
 struct RAVEN_API FD3D12Texture
 {
     TComPtr<ID3D12Resource> Resource;
+    D3D12_RESOURCE_DESC1 NativeDesc = {};
     FGfxTextureDesc Desc = {};
     bool8 bIsSwapchainImage = false;
 
     uint32 SrvIndex = GfxInvalidBindlessIndex;
     uint32 UavIndex = GfxInvalidBindlessIndex;
-    uint32 RtvIndex = GfxInvalidBindlessIndex;
-    uint32 DsvIndex = GfxInvalidBindlessIndex;
 };
 
 struct RAVEN_API FD3D12TextureView

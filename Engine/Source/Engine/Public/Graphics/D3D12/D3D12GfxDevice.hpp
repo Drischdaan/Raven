@@ -10,8 +10,15 @@
 #include "D3D12GfxResources.hpp"
 #include "D3D12GfxSync.hpp"
 #include "D3D12Include.hpp"
+#include "D3D12TransientAllocator.hpp"
+#include "Core/Memory/Containers/Map.hpp"
 #include "Graphics/GfxDevice.hpp"
 #include "Graphics/GfxResourcePool.hpp"
+
+struct RAVEN_API FGfxSamplerDescHasher
+{
+    [[nodiscard]] uint64 operator()(const FGfxSamplerDesc& Desc) const noexcept;
+};
 
 class RAVEN_API FD3D12GfxDevice : public IGfxDevice
 {
@@ -24,11 +31,11 @@ public:
 
     [[nodiscard]] FD3D12GfxQueue& GetQueue(EGfxQueueType Type) const;
 
-    // TResult<FGfxBufferHandle> CreateBuffer(const FGfxBufferDesc& BufferDesc, FStringView DebugName) override;
-    // TResult<FGfxTextureHandle> CreateTexture(const FGfxTextureDesc& BufferDesc, FStringView DebugName) override;
-    // TResult<FGfxTextureViewHandle> CreateTexture(FGfxTextureHandle TextureHandle, const FGfxTextureViewDesc& TextureViewDesc) override;
-    // FGfxSamplerHandle GetOrCreateSampler(const FGfxSamplerDesc& SamplerDesc) override;
-    //
+    TResult<FGfxBufferHandle> CreateBuffer(const FGfxBufferDesc& BufferDesc, FStringView DebugName) override;
+    TResult<FGfxTextureHandle> CreateTexture(const FGfxTextureDesc& TextureDesc, FStringView DebugName) override;
+    TResult<FGfxTextureViewHandle> CreateTextureView(FGfxTextureHandle TextureHandle, const FGfxTextureViewDesc& TextureViewDesc) override;
+    TResult<FGfxSamplerHandle> GetOrCreateSampler(const FGfxSamplerDesc& SamplerDesc) override;
+
     void DestroyBuffer(FGfxBufferHandle BufferHandle) override;
     void DestroyTexture(FGfxTextureHandle TextureHandle) override;
     void DestroyTextureView(FGfxTextureViewHandle TextureViewHandle) override;
@@ -46,10 +53,10 @@ public:
     [[nodiscard]] FD3D12Pipeline* GetPipeline(FGfxPipelineHandle PipelineHandle);
 
     void FreeDescriptorDeferred(ED3D12DescriptorHeapType HeapType, uint32 Index);
-    //
-    // [[nodiscard]] TSpan<byte8> Map(FGfxBufferHandle BufferHandle) override;
-    // [[nodiscard]] FGfxTextureCopyLayout GetCopyLayout(FGfxTextureHandle TextureHandle, uint32 Subresource) const override;
-    //
+
+    [[nodiscard]] TSpan<byte8> Map(FGfxBufferHandle BufferHandle) override;
+    [[nodiscard]] FGfxTextureCopyLayout GetCopyLayout(FGfxTextureHandle TextureHandle, uint32 Subresource) const override;
+
     // TResult<FGfxShaderHandle> CreateShader(const FGfxShaderDesc& ShaderDesc) override;
     // TResult<FGfxPipelineHandle> CreateGraphicsPipeline(const FGfxGraphicsPipelineDesc& GraphicsPipelineDesc, FStringView DebugName) override;
     // TResult<FGfxPipelineHandle> CreateComputePipeline(const FGfxComputePipelineDesc& ComputePipelineDesc, FStringView DebugName) override;
@@ -68,6 +75,9 @@ public:
     [[nodiscard]] uint32 GetFrameSlot() const;
     void DeferRelease(TComPtr<IUnknown> Object, FD3D12DeferredDeletionQueue::FReleaseCallback OnRelease = {});
 
+    [[nodiscard]] ID3D12Device15* GetNativeDevice() const;
+    [[nodiscard]] FGfxTransientAllocation AllocateTransient(uint64 Size, uint64 Alignment);
+
 private:
     FResult AcquireFactory();
     FResult FindSuitableAdapter();
@@ -83,6 +93,10 @@ private:
     void WaitForFenceValues(const FD3D12QueueFenceValues& FenceValues);
 
     void ReportAndReleaseLeakedResources();
+
+    FResult CreateBufferViews(FD3D12Buffer& Buffer);
+    FResult CreateTextureDefaultViews(FD3D12Texture& Texture);
+    void FreeDescriptorsNow(uint32 SrvIndex, uint32 UavIndex);
 
 private:
     bool8 bIsInitialized = false;
@@ -115,4 +129,9 @@ private:
     TGfxResourcePool<FGfxSamplerHandle, FD3D12Sampler, 2048> Samplers;
     TGfxResourcePool<FGfxShaderHandle, FD3D12Shader> Shaders;
     TGfxResourcePool<FGfxPipelineHandle, FD3D12Pipeline> Pipelines;
+
+    FD3D12TransientAllocator TransientAllocator;
+
+    std::mutex SamplerCacheMutex;
+    TUnorderedMap<FGfxSamplerDesc, FGfxSamplerHandle, FGfxSamplerDescHasher> SamplerCache;
 };

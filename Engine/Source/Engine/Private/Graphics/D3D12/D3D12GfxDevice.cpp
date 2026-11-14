@@ -5,6 +5,7 @@
 #include <print>
 
 #include "Core/Utility/Macros.hpp"
+#include "Graphics/D3D12/D3D12Conversions.hpp"
 #include "Graphics/D3D12/D3D12GfxCommandList.hpp"
 
 namespace
@@ -47,6 +48,189 @@ namespace
             return "Unknown";
         }
     }
+
+    EGfxTextureViewDimension GetDefaultViewDimension(const FGfxTextureDesc& Desc)
+    {
+        const uint32 ArraySize = GetTextureArraySize(Desc);
+        switch (Desc.Dimension)
+        {
+        case EGfxTextureDimension::Texture1D: return ArraySize > 1 ? EGfxTextureViewDimension::Texture1DArray : EGfxTextureViewDimension::Texture1D;
+        case EGfxTextureDimension::Texture2D: return ArraySize > 1 ? EGfxTextureViewDimension::Texture2DArray : EGfxTextureViewDimension::Texture2D;
+        case EGfxTextureDimension::Texture3D: return EGfxTextureViewDimension::Texture3D;
+        case EGfxTextureDimension::TextureCube: return ArraySize > 6 ? EGfxTextureViewDimension::TextureCubeArray : EGfxTextureViewDimension::TextureCube;
+        default:
+            return EGfxTextureViewDimension::Texture2D;
+        }
+    }
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC MakeTextureSrvDesc(const FGfxTextureDesc& Desc, EGfxTextureViewDimension Dimension, const DXGI_FORMAT Format, const FGfxSubresourceRange& Range,
+                                                       const uint32 PlaneSlice)
+    {
+        if (Dimension == EGfxTextureViewDimension::Inherit)
+        {
+            Dimension = GetDefaultViewDimension(Desc);
+        }
+        const bool8 bIsMultisampled = Desc.SampleCount > 1;
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
+        SrvDesc.Format = Format;
+        SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+        switch (Dimension)
+        {
+        case EGfxTextureViewDimension::Texture1D:
+            SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE1D;
+            SrvDesc.Texture1D.MostDetailedMip = Range.BaseMip;
+            SrvDesc.Texture1D.MipLevels = Range.MipCount;
+            break;
+        case EGfxTextureViewDimension::Texture1DArray:
+            SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE1DARRAY;
+            SrvDesc.Texture1DArray.MostDetailedMip = Range.BaseMip;
+            SrvDesc.Texture1DArray.MipLevels = Range.MipCount;
+            SrvDesc.Texture1DArray.FirstArraySlice = Range.BaseArraySlice;
+            SrvDesc.Texture1DArray.ArraySize = Range.ArraySliceCount;
+            break;
+        case EGfxTextureViewDimension::Texture2D:
+            if (bIsMultisampled)
+            {
+                SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
+            }
+            else
+            {
+                SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+                SrvDesc.Texture2D.MostDetailedMip = Range.BaseMip;
+                SrvDesc.Texture2D.MipLevels = Range.MipCount;
+                SrvDesc.Texture2D.PlaneSlice = PlaneSlice;
+            }
+            break;
+        case EGfxTextureViewDimension::Texture2DArray:
+            if (bIsMultisampled)
+            {
+                SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMSARRAY;
+                SrvDesc.Texture2DMSArray.FirstArraySlice = Range.BaseArraySlice;
+                SrvDesc.Texture2DMSArray.ArraySize = Range.ArraySliceCount;
+            }
+            else
+            {
+                SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+                SrvDesc.Texture2DArray.MostDetailedMip = Range.BaseMip;
+                SrvDesc.Texture2DArray.MipLevels = Range.MipCount;
+                SrvDesc.Texture2DArray.FirstArraySlice = Range.BaseArraySlice;
+                SrvDesc.Texture2DArray.ArraySize = Range.ArraySliceCount;
+                SrvDesc.Texture2DArray.PlaneSlice = PlaneSlice;
+            }
+            break;
+        case EGfxTextureViewDimension::Texture3D:
+            SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+            SrvDesc.Texture3D.MostDetailedMip = Range.BaseMip;
+            SrvDesc.Texture3D.MipLevels = Range.MipCount;
+            break;
+        case EGfxTextureViewDimension::TextureCube:
+            SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+            SrvDesc.TextureCube.MostDetailedMip = Range.BaseMip;
+            SrvDesc.TextureCube.MipLevels = Range.MipCount;
+            break;
+        case EGfxTextureViewDimension::TextureCubeArray:
+            SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBEARRAY;
+            SrvDesc.TextureCubeArray.MostDetailedMip = Range.BaseMip;
+            SrvDesc.TextureCubeArray.MipLevels = Range.MipCount;
+            SrvDesc.TextureCubeArray.First2DArrayFace = Range.BaseArraySlice;
+            SrvDesc.TextureCubeArray.NumCubes = Range.ArraySliceCount / 6;
+            break;
+        default:
+            break;
+        }
+        return SrvDesc;
+    }
+
+    D3D12_UNORDERED_ACCESS_VIEW_DESC MakeTextureUavDesc(const FGfxTextureDesc& Desc, EGfxTextureViewDimension Dimension, const DXGI_FORMAT Format, const FGfxSubresourceRange& Range,
+                                                        const uint32 PlaneSlice)
+    {
+        if (Dimension == EGfxTextureViewDimension::Inherit)
+        {
+            Dimension = GetDefaultViewDimension(Desc);
+        }
+        const bool8 bIsMultisampled = Desc.SampleCount > 1;
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC UavDesc = {};
+        UavDesc.Format = Format;
+
+        switch (Dimension)
+        {
+        case EGfxTextureViewDimension::Texture1D:
+            UavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE1D;
+            UavDesc.Texture1D.MipSlice = Range.BaseMip;
+            break;
+        case EGfxTextureViewDimension::Texture1DArray:
+            UavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE1DARRAY;
+            UavDesc.Texture1DArray.MipSlice = Range.BaseMip;
+            UavDesc.Texture1DArray.FirstArraySlice = Range.BaseArraySlice;
+            UavDesc.Texture1DArray.ArraySize = Range.ArraySliceCount;
+            break;
+        case EGfxTextureViewDimension::Texture2D:
+            if (bIsMultisampled)
+            {
+                UavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DMS;
+            }
+            else
+            {
+                UavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+                UavDesc.Texture2D.MipSlice = Range.BaseMip;
+                UavDesc.Texture2D.PlaneSlice = PlaneSlice;
+            }
+            break;
+        case EGfxTextureViewDimension::Texture2DArray:
+        case EGfxTextureViewDimension::TextureCube:
+        case EGfxTextureViewDimension::TextureCubeArray:
+            if (bIsMultisampled)
+            {
+                UavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DMSARRAY;
+                UavDesc.Texture2DMSArray.FirstArraySlice = Range.BaseArraySlice;
+                UavDesc.Texture2DMSArray.ArraySize = Range.ArraySliceCount;
+            }
+            else
+            {
+                UavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+                UavDesc.Texture2DArray.MipSlice = Range.BaseMip;
+                UavDesc.Texture2DArray.FirstArraySlice = Range.BaseArraySlice;
+                UavDesc.Texture2DArray.ArraySize = Range.ArraySliceCount;
+                UavDesc.Texture2DArray.PlaneSlice = PlaneSlice;
+            }
+            break;
+        case EGfxTextureViewDimension::Texture3D:
+            UavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
+            UavDesc.Texture3D.MipSlice = Range.BaseMip;
+            UavDesc.Texture3D.FirstWSlice = 0;
+            UavDesc.Texture3D.WSize = UINT32_MAX;
+            break;
+        default:
+            break;
+        }
+        return UavDesc;
+    }
+}
+
+uint64 FGfxSamplerDescHasher::operator()(const FGfxSamplerDesc& Desc) const noexcept
+{
+    size64 Hash = 0;
+    const auto Combine = [&Hash](const size64 Value)
+    {
+        Hash ^= Value + 0x9e3779b97f4a7c15ull + (Hash << 6) + (Hash >> 2);
+    };
+    Combine(std::to_underlying(Desc.MinFilter));
+    Combine(std::to_underlying(Desc.MagFilter));
+    Combine(std::to_underlying(Desc.MipFilter));
+    Combine(std::to_underlying(Desc.AddressU));
+    Combine(std::to_underlying(Desc.AddressV));
+    Combine(std::to_underlying(Desc.AddressW));
+    Combine(std::to_underlying(Desc.Reduction));
+    Combine(std::to_underlying(Desc.CompareOp));
+    Combine(std::to_underlying(Desc.BorderColor));
+    Combine(Desc.MaxAnisotropy);
+    Combine(std::hash<float32>{}(Desc.MipLodBias));
+    Combine(std::hash<float32>{}(Desc.MinLod));
+    Combine(std::hash<float32>{}(Desc.MaxLod));
+    return Hash;
 }
 
 FResult FD3D12GfxDevice::Initialize(const FGfxDeviceDesc& InDeviceDesc)
@@ -64,6 +248,9 @@ FResult FD3D12GfxDevice::Initialize(const FGfxDeviceDesc& InDeviceDesc)
     RESULT_CHECK(CreateQueues())
     RESULT_CHECK(CreateDescriptorHeaps())
     RESULT_CHECK(CreateGlobalRootSignature())
+
+    static_assert(MaxFramesInFlight <= FD3D12TransientAllocator::MaxFrameSlots);
+    TransientAllocator.Initialize(*this);
 
     DeletionQueue.Initialize(Queues);
     FrameIndex = 0;
@@ -83,7 +270,12 @@ void FD3D12GfxDevice::Deinitialize()
         return;
     }
     WaitForIdle();
+    TransientAllocator.Deinitialize();
     DeletionQueue.Flush();
+    {
+        std::scoped_lock Lock(SamplerCacheMutex);
+        SamplerCache.clear();
+    }
     ReportAndReleaseLeakedResources();
 
     for (FD3D12CommandListPool& CommandListPool : CommandListPools)
@@ -108,6 +300,284 @@ void FD3D12GfxDevice::Deinitialize()
 FD3D12GfxQueue& FD3D12GfxDevice::GetQueue(EGfxQueueType Type) const
 {
     return const_cast<FD3D12GfxQueue&>(Queues[static_cast<uint8>(Type)]);
+}
+
+TResult<FGfxBufferHandle> FD3D12GfxDevice::CreateBuffer(const FGfxBufferDesc& BufferDesc, FStringView DebugName)
+{
+    const bool8 bIsCpuVisible = BufferDesc.MemoryType != EGfxMemoryType::GpuOnly;
+    const bool8 bHasUav = HasAnyFlags(BufferDesc.Usage, EGfxBufferUsage::UnorderedAccess);
+    const bool8 bHasViews = HasAnyFlags(BufferDesc.Usage, EGfxBufferUsage::ShaderResource | EGfxBufferUsage::UnorderedAccess);
+
+    if (BufferDesc.Size == 0)
+    {
+        return RESULT_ERROR("Buffer size must not be zero");
+    }
+    if (bHasUav && (BufferDesc.MemoryType == EGfxMemoryType::Upload || BufferDesc.MemoryType == EGfxMemoryType::Readback))
+    {
+        return RESULT_ERROR("Upload and readback buffers can't have UnorderedAccess usage");
+    }
+    if (BufferDesc.MemoryType == EGfxMemoryType::GpuUpload && !Capabilities.bSupportsGpuUploadHeap)
+    {
+        return RESULT_ERROR("GpuUpload memory isn't supported on this device");
+    }
+    if (bHasViews && BufferDesc.Stride == 0 && BufferDesc.Size % 4 != 0)
+    {
+        return RESULT_ERROR("Raw buffers (Stride == 0) with views must have a size that's a multiple of 4");
+    }
+    if (BufferDesc.Stride > 0 && BufferDesc.Size % BufferDesc.Stride != 0)
+    {
+        return RESULT_ERROR("Buffer size must be a multiple of its stride");
+    }
+
+    D3D12_RESOURCE_FLAGS ResourceFlags = D3D12_RESOURCE_FLAG_NONE;
+    if (bHasUav)
+    {
+        ResourceFlags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    }
+    if (HasAnyFlags(BufferDesc.Usage, EGfxBufferUsage::AccelerationStructure))
+    {
+        ResourceFlags |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    }
+
+    const D3D12_HEAP_PROPERTIES HeapProperties = {.Type = ToD3D12HeapType(BufferDesc.MemoryType)};
+
+    D3D12_RESOURCE_DESC1 ResourceDesc = {};
+    ResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    ResourceDesc.Width = BufferDesc.Size;
+    ResourceDesc.Height = 1;
+    ResourceDesc.DepthOrArraySize = 1;
+    ResourceDesc.MipLevels = 1;
+    ResourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+    ResourceDesc.SampleDesc = {.Count = 1, .Quality = 0};
+    ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    ResourceDesc.Flags = ResourceFlags;
+
+    FD3D12Buffer Buffer;
+    Buffer.Desc = BufferDesc;
+
+    RESULT_TRY_PLATFORM_CALL(Device->CreateCommittedResource3(
+                                 &HeapProperties, D3D12_HEAP_FLAG_NONE, &ResourceDesc, D3D12_BARRIER_LAYOUT_UNDEFINED,
+                                 nullptr, nullptr, 0, nullptr, IID_PPV_ARGS(&Buffer.Resource)), "Failed to create buffer")
+
+    Buffer.GpuAddress = Buffer.Resource->GetGPUVirtualAddress();
+    SetD3D12DebugName(Buffer.Resource.Get(), DebugName);
+
+    if (bIsCpuVisible)
+    {
+        constexpr D3D12_RANGE NoRead = {.Begin = 0, .End = 0};
+        const D3D12_RANGE* ReadRange = BufferDesc.MemoryType == EGfxMemoryType::Readback ? nullptr : &NoRead;
+        void* MappedData = nullptr;
+        RESULT_TRY_PLATFORM_CALL(Buffer.Resource->Map(0, ReadRange, &MappedData), "Failed to map buffer")
+        Buffer.MappedData = static_cast<byte8*>(MappedData);
+    }
+
+    RESULT_CHECK(CreateBufferViews(Buffer))
+
+    const uint32 SrvIndex = Buffer.SrvIndex;
+    const uint32 UavIndex = Buffer.UavIndex;
+    TResult<FGfxBufferHandle> Handle = Buffers.Allocate(std::move(Buffer));
+    if (Handle.HasError())
+    {
+        FreeDescriptorsNow(SrvIndex, UavIndex);
+    }
+    return Handle;
+}
+
+TResult<FGfxTextureHandle> FD3D12GfxDevice::CreateTexture(const FGfxTextureDesc& TextureDesc, FStringView DebugName)
+{
+    const FD3D12FormatInfo FormatInfo = GetD3D12FormatInfo(TextureDesc.Format);
+    const bool8 bIsRenderTarget = HasAnyFlags(TextureDesc.Usage, EGfxTextureUsage::RenderTarget);
+    const bool8 bIsDepthStencil = HasAnyFlags(TextureDesc.Usage, EGfxTextureUsage::DepthStencil);
+    const bool8 bHasSrv = HasAnyFlags(TextureDesc.Usage, EGfxTextureUsage::ShaderResource);
+    const bool8 bHasUav = HasAnyFlags(TextureDesc.Usage, EGfxTextureUsage::UnorderedAccess);
+
+    if (FormatInfo.ResourceFormat == DXGI_FORMAT_UNKNOWN)
+    {
+        return RESULT_ERROR("Unknown texture format");
+    }
+    if (TextureDesc.Width == 0 || TextureDesc.Height == 0 || TextureDesc.DepthOrArraySize == 0 || TextureDesc.SampleCount == 0)
+    {
+        return RESULT_ERROR("Texture size, array size and sample count must not be zero");
+    }
+    if (bIsRenderTarget && bIsDepthStencil)
+    {
+        return RESULT_ERROR("A texture can't be both a render target and a depth stencil");
+    }
+    if (bIsDepthStencil != FormatInfo.bIsDepth && (bIsDepthStencil || bIsRenderTarget))
+    {
+        return RESULT_ERROR("DepthStencil usage needs a depth format, and RenderTarget usage a color format");
+    }
+    if (bHasUav && (FormatInfo.bIsSrgb || FormatInfo.bIsDepth))
+    {
+        return RESULT_ERROR("sRGB and depth textures can't have UnorderedAccess usage");
+    }
+    if (TextureDesc.Dimension == EGfxTextureDimension::TextureCube && (TextureDesc.DepthOrArraySize % 6 != 0 || TextureDesc.Width != TextureDesc.Height))
+    {
+        return RESULT_ERROR("Cube textures need square faces and DepthOrArraySize as a multiple of 6");
+    }
+    if (TextureDesc.SampleCount > 1 && (TextureDesc.MipLevels > 1 || TextureDesc.Dimension != EGfxTextureDimension::Texture2D))
+    {
+        return RESULT_ERROR("Multisampled textures must be 2D with a single mip");
+    }
+
+    D3D12_RESOURCE_FLAGS ResourceFlags = D3D12_RESOURCE_FLAG_NONE;
+    if (bIsRenderTarget)
+    {
+        ResourceFlags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    }
+    if (bIsDepthStencil)
+    {
+        ResourceFlags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+        if (!bHasSrv)
+        {
+            ResourceFlags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+        }
+    }
+    if (bHasUav)
+    {
+        ResourceFlags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    }
+
+    D3D12_RESOURCE_DESC1 ResourceDesc = {};
+    ResourceDesc.Dimension = ToD3D12ResourceDimension(TextureDesc.Dimension);
+    ResourceDesc.Width = TextureDesc.Width;
+    ResourceDesc.Height = TextureDesc.Dimension == EGfxTextureDimension::Texture1D ? 1 : TextureDesc.Height;
+    ResourceDesc.DepthOrArraySize = static_cast<uint16>(TextureDesc.DepthOrArraySize);
+    ResourceDesc.MipLevels = static_cast<uint16>(TextureDesc.MipLevels);
+    ResourceDesc.Format = FormatInfo.ResourceFormat;
+    ResourceDesc.SampleDesc = {.Count = TextureDesc.SampleCount, .Quality = 0};
+    ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    ResourceDesc.Flags = ResourceFlags;
+
+    D3D12_CLEAR_VALUE ClearValue = {};
+    const D3D12_CLEAR_VALUE* OptimizedClearValue = nullptr;
+    if (TextureDesc.OptimizedClearValue.has_value() && (bIsRenderTarget || bIsDepthStencil))
+    {
+        const FGfxClearValue& Clear = *TextureDesc.OptimizedClearValue;
+        if (bIsDepthStencil)
+        {
+            ClearValue.Format = FormatInfo.DepthStencilFormat;
+            ClearValue.DepthStencil.Depth = Clear.Depth;
+            ClearValue.DepthStencil.Stencil = Clear.Stencil;
+        }
+        else
+        {
+            ClearValue.Format = FormatInfo.ViewFormat;
+            std::memcpy(ClearValue.Color, Clear.Color.data(), sizeof(ClearValue.Color));
+        }
+        OptimizedClearValue = &ClearValue;
+    }
+
+    constexpr D3D12_HEAP_PROPERTIES HeapProperties = {.Type = D3D12_HEAP_TYPE_DEFAULT};
+
+    FD3D12Texture Texture;
+    RESULT_TRY_PLATFORM_CALL(Device->CreateCommittedResource3(
+                                 &HeapProperties, D3D12_HEAP_FLAG_NONE, &ResourceDesc, D3D12_BARRIER_LAYOUT_COMMON,
+                                 OptimizedClearValue, nullptr, 0, nullptr, IID_PPV_ARGS(&Texture.Resource)), "Failed to create texture")
+
+    const D3D12_RESOURCE_DESC CreatedDesc = Texture.Resource->GetDesc();
+    Texture.NativeDesc = ResourceDesc;
+    Texture.NativeDesc.MipLevels = CreatedDesc.MipLevels;
+    Texture.Desc = TextureDesc;
+    Texture.Desc.MipLevels = CreatedDesc.MipLevels;
+    SetD3D12DebugName(Texture.Resource.Get(), DebugName);
+
+    RESULT_CHECK(CreateTextureDefaultViews(Texture))
+
+    const uint32 SrvIndex = Texture.SrvIndex;
+    const uint32 UavIndex = Texture.UavIndex;
+    TResult<FGfxTextureHandle> Handle = Textures.Allocate(std::move(Texture));
+    if (Handle.HasError())
+    {
+        FreeDescriptorsNow(SrvIndex, UavIndex);
+    }
+    return Handle;
+}
+
+TResult<FGfxTextureViewHandle> FD3D12GfxDevice::CreateTextureView(FGfxTextureHandle TextureHandle, const FGfxTextureViewDesc& TextureViewDesc)
+{
+    const FD3D12Texture* Texture = Textures.Get(TextureHandle);
+    if (Texture == nullptr)
+    {
+        return RESULT_ERROR("CreateTextureView: invalid or stale texture handle");
+    }
+
+    const FGfxTextureDesc& Desc = Texture->Desc;
+    const FD3D12FormatInfo FormatInfo = GetD3D12FormatInfo(Desc.Format);
+    const bool8 bIsUav = TextureViewDesc.ViewType == EGfxViewType::UnorderedAccess;
+
+    if (bIsUav && !HasAnyFlags(Desc.Usage, EGfxTextureUsage::UnorderedAccess))
+    {
+        return RESULT_ERROR("CreateTextureView: texture wasn't created with UnorderedAccess usage");
+    }
+    if (!bIsUav && !HasAnyFlags(Desc.Usage, EGfxTextureUsage::ShaderResource))
+    {
+        return RESULT_ERROR("CreateTextureView: texture wasn't created with ShaderResource usage");
+    }
+
+    RESULT_CHECK_ASSIGN(ResolveSubresourceRange(Desc, TextureViewDesc.Range), Range)
+
+    const bool8 bIsStencil = TextureViewDesc.Range.Aspect == EGfxTextureAspect::Stencil;
+    if (bIsStencil && !FormatInfo.bHasStencil)
+    {
+        return RESULT_ERROR("CreateTextureView: texture has no stencil plane");
+    }
+    DXGI_FORMAT ViewFormat = bIsStencil ? FormatInfo.StencilViewFormat : FormatInfo.ViewFormat;
+    if (TextureViewDesc.Format != EGfxFormat::Unknown)
+    {
+        ViewFormat = GetD3D12FormatInfo(TextureViewDesc.Format).ViewFormat;
+    }
+    const uint32 PlaneSlice = bIsStencil ? 1 : 0;
+
+    FD3D12DescriptorHeap& ResourceHeap = GetDescriptorHeap(ED3D12DescriptorHeapType::Resource);
+    RESULT_CHECK_ASSIGN(ResourceHeap.Allocate(), Descriptor)
+
+    if (bIsUav)
+    {
+        const D3D12_UNORDERED_ACCESS_VIEW_DESC UavDesc = MakeTextureUavDesc(Desc, TextureViewDesc.Dimension, ViewFormat, Range, PlaneSlice);
+        Device->CreateUnorderedAccessView(Texture->Resource.Get(), nullptr, &UavDesc, Descriptor.CpuHandle);
+    }
+    else
+    {
+        const D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = MakeTextureSrvDesc(Desc, TextureViewDesc.Dimension, ViewFormat, Range, PlaneSlice);
+        Device->CreateShaderResourceView(Texture->Resource.Get(), &SrvDesc, Descriptor.CpuHandle);
+    }
+
+    FD3D12TextureView TextureView;
+    TextureView.TextureHandle = TextureHandle;
+    TextureView.Desc = TextureViewDesc;
+    TextureView.DescriptorIndex = Descriptor.Index;
+
+    TResult<FGfxTextureViewHandle> Handle = TextureViews.Allocate(std::move(TextureView));
+    if (Handle.HasError())
+    {
+        ResourceHeap.Free(Descriptor.Index);
+    }
+    return Handle;
+}
+
+TResult<FGfxSamplerHandle> FD3D12GfxDevice::GetOrCreateSampler(const FGfxSamplerDesc& SamplerDesc)
+{
+    std::scoped_lock Lock(SamplerCacheMutex);
+    if (const auto Iterator = SamplerCache.find(SamplerDesc); Iterator != SamplerCache.end())
+    {
+        return RESULT_OK(Iterator->second);
+    }
+
+    FD3D12DescriptorHeap& SamplerHeap = GetDescriptorHeap(ED3D12DescriptorHeapType::Sampler);
+    RESULT_CHECK_ASSIGN(SamplerHeap.Allocate(), Descriptor)
+
+    const D3D12_SAMPLER_DESC NativeDesc = ToD3D12SamplerDesc(SamplerDesc);
+    Device->CreateSampler(&NativeDesc, Descriptor.CpuHandle);
+
+    TResult<FGfxSamplerHandle> Handle = Samplers.Allocate(FD3D12Sampler{.Desc = SamplerDesc, .DescriptorIndex = Descriptor.Index});
+    if (Handle.HasError())
+    {
+        SamplerHeap.Free(Descriptor.Index);
+        return Handle;
+    }
+    SamplerCache.emplace(SamplerDesc, Handle.GetValue());
+    return Handle;
 }
 
 void FD3D12GfxDevice::DestroyBuffer(const FGfxBufferHandle BufferHandle)
@@ -139,8 +609,6 @@ void FD3D12GfxDevice::DestroyTexture(const FGfxTextureHandle TextureHandle)
     }
     FreeDescriptorDeferred(ED3D12DescriptorHeapType::Resource, Texture.SrvIndex);
     FreeDescriptorDeferred(ED3D12DescriptorHeapType::Resource, Texture.UavIndex);
-    FreeDescriptorDeferred(ED3D12DescriptorHeapType::RenderTarget, Texture.RtvIndex);
-    FreeDescriptorDeferred(ED3D12DescriptorHeapType::DepthStencil, Texture.DsvIndex);
 }
 
 void FD3D12GfxDevice::DestroyTextureView(const FGfxTextureViewHandle TextureViewHandle)
@@ -228,6 +696,46 @@ void FD3D12GfxDevice::FreeDescriptorDeferred(ED3D12DescriptorHeapType HeapType, 
     });
 }
 
+TSpan<byte8> FD3D12GfxDevice::Map(const FGfxBufferHandle BufferHandle)
+{
+    const FD3D12Buffer* Buffer = Buffers.Get(BufferHandle);
+    if (Buffer == nullptr || Buffer->MappedData == nullptr)
+    {
+        return {};
+    }
+    return TSpan<byte8>(Buffer->MappedData, Buffer->Desc.Size);
+}
+
+FGfxTextureCopyLayout FD3D12GfxDevice::GetCopyLayout(const FGfxTextureHandle TextureHandle, const uint32 Subresource) const
+{
+    const FD3D12Texture* Texture = Textures.Get(TextureHandle);
+    if (Texture == nullptr)
+    {
+        return {};
+    }
+
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT Footprint = {};
+    uint32 RowCount = 0;
+    uint64 RowSize = 0;
+    uint64 TotalSize = 0;
+    Device->GetCopyableFootprints1(&Texture->NativeDesc, Subresource, 1, 0, &Footprint, &RowCount, &RowSize, &TotalSize);
+    if (TotalSize == UINT64_MAX)
+    {
+        return {};
+    }
+
+    return FGfxTextureCopyLayout{
+        .TotalSize = TotalSize,
+        .OffsetAlignment = D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT,
+        .RowPitch = Footprint.Footprint.RowPitch,
+        .RowSize = static_cast<uint32>(RowSize),
+        .RowCount = RowCount,
+        .Width = Footprint.Footprint.Width,
+        .Height = Footprint.Footprint.Height,
+        .Depth = Footprint.Footprint.Depth,
+    };
+}
+
 IGfxCommandList* FD3D12GfxDevice::AcquireCommandList(EGfxQueueType QueueType)
 {
     return CommandListPools[static_cast<uint8>(QueueType)].Acquire();
@@ -298,7 +806,7 @@ void FD3D12GfxDevice::BeginFrame()
     const uint32 Slot = GetFrameSlot();
     WaitForFenceValues(FrameFenceValues[Slot]);
     DeletionQueue.Process();
-
+    TransientAllocator.BeginFrame(Slot);
     bIsInFrame = true;
 }
 
@@ -333,6 +841,27 @@ uint32 FD3D12GfxDevice::GetFrameSlot() const
 void FD3D12GfxDevice::DeferRelease(TComPtr<IUnknown> Object, FD3D12DeferredDeletionQueue::FReleaseCallback OnRelease)
 {
     DeletionQueue.Enqueue(std::move(Object), std::move(OnRelease));
+}
+
+ID3D12Device15* FD3D12GfxDevice::GetNativeDevice() const
+{
+    return Device.Get();
+}
+
+FGfxTransientAllocation FD3D12GfxDevice::AllocateTransient(const uint64 Size, const uint64 Alignment)
+{
+    if (!bIsInFrame)
+    {
+        std::println("AllocateTransient: only valid between BeginFrame and EndFrame");
+        return {};
+    }
+    TResult<FGfxTransientAllocation> Allocation = TransientAllocator.Allocate(Size, Alignment);
+    if (Allocation.HasError())
+    {
+        std::println("AllocateTransient: {}", Allocation.GetError().Message);
+        return {};
+    }
+    return std::move(Allocation).GetValue();
 }
 
 FResult FD3D12GfxDevice::AcquireFactory()
@@ -434,6 +963,13 @@ FResult FD3D12GfxDevice::CheckFeatureSupport()
     D3D12_FEATURE_DATA_D3D12_OPTIONS7 Options7 = {};
     RESULT_TRY_PLATFORM_CALL(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &Options7, sizeof(Options7)), "Failed to check feature options")
     Capabilities.bSupportsMeshShaders = Options7.MeshShaderTier >= D3D12_MESH_SHADER_TIER_1;
+
+    D3D12_FEATURE_DATA_D3D12_OPTIONS12 Options12 = {};
+    RESULT_TRY_PLATFORM_CALL(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &Options12, sizeof(Options12)), "Failed to check feature options")
+    if (!Options12.EnhancedBarriersSupported)
+    {
+        return RESULT_ERROR("Enhanced barriers are required");
+    }
 
     D3D12_FEATURE_DATA_D3D12_OPTIONS16 Options16 = {};
     RESULT_TRY_PLATFORM_CALL(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS16, &Options16, sizeof(Options16)), "Failed to check feature options")
@@ -630,4 +1166,97 @@ void FD3D12GfxDevice::ReportAndReleaseLeakedResources()
     TextureViews.Clear();
     Textures.Clear();
     Buffers.Clear();
+}
+
+FResult FD3D12GfxDevice::CreateBufferViews(FD3D12Buffer& Buffer)
+{
+    const FGfxBufferDesc& Desc = Buffer.Desc;
+    const bool8 bIsRaw = Desc.Stride == 0;
+    const uint64 ElementSize = bIsRaw ? 4 : Desc.Stride;
+    const uint64 ElementCount = Desc.Size / ElementSize;
+    if (ElementCount > UINT32_MAX)
+    {
+        return RESULT_ERROR("Buffer has too many elements for a view");
+    }
+    FD3D12DescriptorHeap& ResourceHeap = GetDescriptorHeap(ED3D12DescriptorHeapType::Resource);
+
+    if (HasAnyFlags(Desc.Usage, EGfxBufferUsage::ShaderResource))
+    {
+        RESULT_CHECK_ASSIGN(ResourceHeap.Allocate(), Srv)
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
+        SrvDesc.Format = bIsRaw ? DXGI_FORMAT_R32_TYPELESS : DXGI_FORMAT_UNKNOWN;
+        SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        SrvDesc.Buffer.FirstElement = 0;
+        SrvDesc.Buffer.NumElements = static_cast<uint32>(ElementCount);
+        SrvDesc.Buffer.StructureByteStride = bIsRaw ? 0 : Desc.Stride;
+        SrvDesc.Buffer.Flags = bIsRaw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
+        Device->CreateShaderResourceView(Buffer.Resource.Get(), &SrvDesc, Srv.CpuHandle);
+        Buffer.SrvIndex = Srv.Index;
+    }
+
+    if (HasAnyFlags(Desc.Usage, EGfxBufferUsage::UnorderedAccess))
+    {
+        TResult<FD3D12Descriptor> Uav = ResourceHeap.Allocate();
+        if (Uav.HasError())
+        {
+            ResourceHeap.Free(Buffer.SrvIndex);
+            Buffer.SrvIndex = GfxInvalidBindlessIndex;
+            return std::unexpected(Uav.GetError());
+        }
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC UavDesc = {};
+        UavDesc.Format = bIsRaw ? DXGI_FORMAT_R32_TYPELESS : DXGI_FORMAT_UNKNOWN;
+        UavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        UavDesc.Buffer.FirstElement = 0;
+        UavDesc.Buffer.NumElements = static_cast<uint32>(ElementCount);
+        UavDesc.Buffer.StructureByteStride = bIsRaw ? 0 : Desc.Stride;
+        UavDesc.Buffer.CounterOffsetInBytes = 0;
+        UavDesc.Buffer.Flags = bIsRaw ? D3D12_BUFFER_UAV_FLAG_RAW : D3D12_BUFFER_UAV_FLAG_NONE;
+        Device->CreateUnorderedAccessView(Buffer.Resource.Get(), nullptr, &UavDesc, Uav.GetValue().CpuHandle);
+        Buffer.UavIndex = Uav.GetValue().Index;
+    }
+    return RESULT_OK_EMPTY();
+}
+
+FResult FD3D12GfxDevice::CreateTextureDefaultViews(FD3D12Texture& Texture)
+{
+    const FGfxTextureDesc& Desc = Texture.Desc;
+    const FD3D12FormatInfo FormatInfo = GetD3D12FormatInfo(Desc.Format);
+    FD3D12DescriptorHeap& ResourceHeap = GetDescriptorHeap(ED3D12DescriptorHeapType::Resource);
+
+    RESULT_CHECK_ASSIGN(ResolveSubresourceRange(Desc, FGfxSubresourceRange::All()), FullRange)
+
+    if (HasAnyFlags(Desc.Usage, EGfxTextureUsage::ShaderResource))
+    {
+        RESULT_CHECK_ASSIGN(ResourceHeap.Allocate(), Srv)
+        const D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = MakeTextureSrvDesc(Desc, EGfxTextureViewDimension::Inherit, FormatInfo.ViewFormat, FullRange, 0);
+        Device->CreateShaderResourceView(Texture.Resource.Get(), &SrvDesc, Srv.CpuHandle);
+        Texture.SrvIndex = Srv.Index;
+    }
+
+    if (HasAnyFlags(Desc.Usage, EGfxTextureUsage::UnorderedAccess))
+    {
+        TResult<FD3D12Descriptor> Uav = ResourceHeap.Allocate();
+        if (Uav.HasError())
+        {
+            ResourceHeap.Free(Texture.SrvIndex);
+            Texture.SrvIndex = GfxInvalidBindlessIndex;
+            return std::unexpected(Uav.GetError());
+        }
+        FGfxSubresourceRange Mip0 = FullRange;
+        Mip0.MipCount = 1;
+        const D3D12_UNORDERED_ACCESS_VIEW_DESC UavDesc = MakeTextureUavDesc(Desc, EGfxTextureViewDimension::Inherit, FormatInfo.ViewFormat, Mip0, 0);
+        Device->CreateUnorderedAccessView(Texture.Resource.Get(), nullptr, &UavDesc, Uav.GetValue().CpuHandle);
+        Texture.UavIndex = Uav.GetValue().Index;
+    }
+    return RESULT_OK_EMPTY();
+}
+
+void FD3D12GfxDevice::FreeDescriptorsNow(const uint32 SrvIndex, const uint32 UavIndex)
+{
+    FD3D12DescriptorHeap& ResourceHeap = GetDescriptorHeap(ED3D12DescriptorHeapType::Resource);
+    ResourceHeap.Free(SrvIndex);
+    ResourceHeap.Free(UavIndex);
 }
