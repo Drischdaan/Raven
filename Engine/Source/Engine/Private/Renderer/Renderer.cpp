@@ -3,6 +3,8 @@
 #include "Renderer/Renderer.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <cstring>
 #include <filesystem>
 
 #include <Windows.h>
@@ -11,13 +13,21 @@
 #include "Graphics/GfxDevice.hpp"
 #include "Graphics/GfxSwapchain.hpp"
 #include "Platform/Window.hpp"
+#include "Renderer/GpuTypes.hpp"
 #include "Renderer/RendererLog.hpp"
+#include "Renderer/Mesh/MeshPool.hpp"
+#include "Renderer/Passes/DebugMeshPass.hpp"
+#include "Renderer/Scene/GpuScene.hpp"
+#include "Renderer/Utility/TextureStateTracker.hpp"
+#include "Renderer/Utility/UploadManager.hpp"
 
 RAVEN_DEFINE_LOG_CATEGORY(LogRenderer);
 RAVEN_DEFINE_LOG_CATEGORY(LogShaders);
 
 namespace
 {
+    constexpr EGfxFormat DepthFormat = EGfxFormat::D32_FLOAT;
+
     FString ToUtf8(const std::filesystem::path& Path)
     {
         const std::u8string Utf8 = Path.generic_u8string();
@@ -50,11 +60,19 @@ namespace
         }
     }
 
-    struct FFullscreenTestConstants
+    float64 GetSeconds()
     {
-        float32 TopColor[4];
-        float32 BottomColor[4];
-    };
+        using FClock = std::chrono::steady_clock;
+        return std::chrono::duration<float64>(FClock::now().time_since_epoch()).count();
+    }
+
+    template <typename T>
+    FGfxBufferRange UploadConstants(IGfxCommandList& CommandList, const T& Constants)
+    {
+        const FGfxTransientAllocation Allocation = CommandList.AllocateTransient(sizeof(T), 256);
+        std::memcpy(Allocation.CpuData.data(), &Constants, sizeof(T));
+        return Allocation.GpuRange;
+    }
 }
 
 FRenderer::FRenderer() = default;
@@ -99,8 +117,19 @@ FResult FRenderer::Initialize(const FRendererDesc& InDesc)
         .bDebugInfo = Desc.bShaderDebugInfo,
         }));
     PipelineCache.Initialize(*Device, ShaderLibrary);
+
+    Uploads = MakeUnique<FUploadManager>();
+    TextureStates = MakeUnique<FTextureStateTracker>();
+    MeshPool = MakeUnique<FMeshPool>();
+    RESULT_CHECK(MeshPool->Initialize(*Device, *Uploads, {.MaxVertices = Desc.MaxVertices, .MaxIndices = Desc.MaxIndices}));
+    GpuScene = MakeUnique<FGpuScene>();
+    RESULT_CHECK(GpuScene->Initialize(*Device, *Uploads, Scene.GetMaxInstances()));
+
+    RESULT_CHECK(CreateDepthTexture());
     RESULT_CHECK(CreatePipelines());
 
+    StartTime = GetSeconds();
+    LastFrameTime = StartTime;
     bInitialized = true;
     RAVEN_LOG(LogRenderer, Info, "Renderer initialized ({}x{})", Width, Height);
     return RESULT_OK_EMPTY();
@@ -114,6 +143,16 @@ void FRenderer::Deinitialize()
     }
 
     Device->WaitForIdle();
+    DebugMeshPass.reset();
+    if (DepthTexture.IsValid())
+    {
+        Device->DestroyTexture(DepthTexture);
+        DepthTexture = {};
+    }
+    GpuScene.reset();
+    MeshPool.reset();
+    TextureStates.reset();
+    Uploads.reset();
     PipelineCache.Deinitialize();
     ShaderLibrary.Deinitialize();
     Swapchain.reset();
@@ -143,18 +182,28 @@ FResult FRenderer::ResolveDirectories()
 
 FResult FRenderer::CreatePipelines()
 {
-    FGraphicsPipelineRequest Request = {
-        .VertexShader = {.Path = "Debug/FullscreenTest.hlsl", .EntryPoint = "VSMain", .Stage = EGfxShaderStage::Vertex},
-        .PixelShader = {.Path = "Debug/FullscreenTest.hlsl", .EntryPoint = "PSMain", .Stage = EGfxShaderStage::Pixel},
-        .RenderTargetFormats = {Swapchain->GetFormat()},
-        .RenderTargetCount = 1,
-    };
-    Request.RasterState.CullMode = EGfxCullMode::None;
-    Request.DepthStencilState.bDepthTestEnable = false;
-    Request.DepthStencilState.bDepthWriteEnable = false;
+    DebugMeshPass = MakeUnique<FDebugMeshPass>();
+    RESULT_CHECK(DebugMeshPass->Initialize(PipelineCache, Swapchain->GetFormat(), DepthFormat));
+    return RESULT_OK_EMPTY();
+}
 
-    RESULT_CHECK_ASSIGN(PipelineCache.GetGraphicsPipeline("Debug.FullscreenTest", Request), Pipeline);
-    FullscreenTestPipeline = Pipeline;
+FResult FRenderer::CreateDepthTexture()
+{
+    if (DepthTexture.IsValid())
+    {
+        TextureStates->Unregister(DepthTexture);
+        Device->DestroyTexture(DepthTexture);
+    }
+
+    RESULT_CHECK_ASSIGN(Device->CreateTexture({
+                            .Width = Width,
+                            .Height = Height,
+                            .Format = DepthFormat,
+                            .Usage = EGfxTextureUsage::DepthStencil,
+                            .OptimizedClearValue = FGfxClearValue{.Depth = 0.0f},
+                            }, "SceneDepth"), Created);
+    DepthTexture = Created;
+    TextureStates->Register(DepthTexture);
     return RESULT_OK_EMPTY();
 }
 
@@ -170,8 +219,19 @@ FResult FRenderer::HandleResize()
     RESULT_CHECK(Swapchain->Resize(State.ClientWidth, State.ClientHeight));
     Width = State.ClientWidth;
     Height = State.ClientHeight;
+    RESULT_CHECK(CreateDepthTexture());
     RAVEN_LOG(LogRenderer, Verbose, "Resized to {}x{}", Width, Height);
     return RESULT_OK_EMPTY();
+}
+
+TResult<FMeshHandle> FRenderer::CreateMesh(const FMeshData& Data, const FStringView Name)
+{
+    return MeshPool->CreateMesh(Data, Name);
+}
+
+void FRenderer::DestroyMesh(const FMeshHandle Mesh)
+{
+    MeshPool->DestroyMesh(Mesh);
 }
 
 FResult FRenderer::Render(const FRenderView& View)
@@ -216,56 +276,84 @@ FResult FRenderer::RenderFrame(const FRenderView& View)
     return Swapchain->Present(Desc.bVSync);
 }
 
+FGpuViewConstants FRenderer::MakeViewConstants(const FRenderView& View) const
+{
+    const float32 AspectRatio = static_cast<float32>(Width) / static_cast<float32>(Height);
+    const FMatrix4x4 ViewToClip = FMatrix4x4::MakePerspectiveReverseZ(View.VerticalFov, AspectRatio, View.NearPlane);
+    const FMatrix4x4 WorldToClip = ViewToClip * View.ViewMatrix;
+
+    FGpuViewConstants Constants;
+    Constants.WorldToView = View.ViewMatrix;
+    Constants.ViewToClip = ViewToClip;
+    Constants.WorldToClip = WorldToClip;
+    Constants.ClipToWorld = WorldToClip.GetInverse();
+    Constants.PrevWorldToClip = PrevWorldToClip;
+    Constants.CameraPosition = FVector4::FromVector3(View.Position, 1.0f);
+    Constants.ViewportSize[0] = static_cast<float32>(Width);
+    Constants.ViewportSize[1] = static_cast<float32>(Height);
+    Constants.InvViewportSize[0] = 1.0f / static_cast<float32>(Width);
+    Constants.InvViewportSize[1] = 1.0f / static_cast<float32>(Height);
+    Constants.NearPlane = View.NearPlane;
+    return Constants;
+}
+
 void FRenderer::RecordFrame(IGfxCommandList& CommandList, const FGfxTextureHandle Backbuffer, const FRenderView& View)
 {
-    (void)View; // used from step 3 on
-
     CommandList.BeginEvent("Frame");
 
-    const FGfxTextureBarrier ToRenderTarget = {
-        .TextureHandle = Backbuffer,
-        .SyncBefore = EGfxBarrierSync::None,
-        .SyncAfter = EGfxBarrierSync::RenderTarget,
-        .AccessBefore = EGfxBarrierAccess::NoAccess,
-        .AccessAfter = EGfxBarrierAccess::RenderTarget,
-        .LayoutBefore = EGfxTextureLayout::Present,
-        .LayoutAfter = EGfxTextureLayout::RenderTarget,
-    };
-    CommandList.Barrier({}, {}, TSpan<const FGfxTextureBarrier>(&ToRenderTarget, 1));
+    GpuScene->Update(Scene, *MeshPool);
+    Uploads->Flush(CommandList);
 
-    const FGfxRenderTargetAttachment Target = {
+    const float64 Now = GetSeconds();
+    const FGpuFrameConstants FrameConstants = {
+        .FrameIndex = static_cast<uint32>(Device->GetFrameIndex()),
+        .Time = static_cast<float32>(Now - StartTime),
+        .DeltaTime = static_cast<float32>(Now - LastFrameTime),
+        .InstanceBufferIndex = Device->GetBindlessIndex(GpuScene->GetInstanceBuffer()),
+        .MeshBufferIndex = Device->GetBindlessIndex(MeshPool->GetMeshBuffer()),
+        .PositionBufferIndex = Device->GetBindlessIndex(MeshPool->GetPositionBuffer()),
+        .AttributeBufferIndex = Device->GetBindlessIndex(MeshPool->GetAttributeBuffer()),
+    };
+    LastFrameTime = Now;
+
+    const FGpuViewConstants ViewConstants = MakeViewConstants(View);
+    PrevWorldToClip = ViewConstants.WorldToClip;
+
+    const FDebugMeshPassInputs PassInputs = {
+        .FrameConstants = UploadConstants(CommandList, FrameConstants),
+        .ViewConstants = UploadConstants(CommandList, ViewConstants),
+    };
+
+    TextureStates->Register(Backbuffer, TextureStates::Present);
+    TextureStates->Transition(Backbuffer, TextureStates::RenderTarget);
+    TextureStates->Transition(DepthTexture, TextureStates::DepthWrite);
+    TextureStates->Flush(CommandList);
+
+    const FGfxRenderTargetAttachment ColorTarget = {
         .TextureHandle = Backbuffer,
         .LoadOp = EGfxLoadOp::Clear,
         .StoreOp = EGfxStoreOp::Store,
         .ClearColor = {0.02f, 0.02f, 0.03f, 1.0f},
     };
-    CommandList.BeginRendering({.RenderTargets = TSpan<const FGfxRenderTargetAttachment>(&Target, 1)});
+    CommandList.BeginRendering({
+        .RenderTargets = TSpan<const FGfxRenderTargetAttachment>(&ColorTarget, 1),
+        .DepthStencil = FGfxDepthStencilAttachment{
+            .TextureHandle = DepthTexture,
+            .DepthLoadOp = EGfxLoadOp::Clear,
+            .DepthStoreOp = EGfxStoreOp::Store,
+            .ClearDepth = 0.0f,
+        },
+    });
     CommandList.SetViewport({.Width = static_cast<float32>(Width), .Height = static_cast<float32>(Height)});
     CommandList.SetScissor({.Width = Width, .Height = Height});
 
-    const float32 Time = static_cast<float32>(Device->GetFrameIndex() % 600) / 600.0f;
-    const FFullscreenTestConstants Constants = {
-        .TopColor = {0.10f, 0.25f + 0.25f * Time, 0.55f, 1.0f},
-        .BottomColor = {0.85f, 0.45f, 0.15f, 1.0f},
-    };
-    CommandList.BeginEvent("FullscreenTest");
-    CommandList.SetPipeline(FullscreenTestPipeline);
-    CommandList.SetPushConstants(TSpan<const byte8>(reinterpret_cast<const byte8*>(&Constants), sizeof(Constants)));
-    CommandList.Draw(3);
-    CommandList.EndEvent();
+    DebugMeshPass->Render(CommandList, PassInputs, Scene, *MeshPool);
 
     CommandList.EndRendering();
 
-    const FGfxTextureBarrier ToPresent = {
-        .TextureHandle = Backbuffer,
-        .SyncBefore = EGfxBarrierSync::RenderTarget,
-        .SyncAfter = EGfxBarrierSync::None,
-        .AccessBefore = EGfxBarrierAccess::RenderTarget,
-        .AccessAfter = EGfxBarrierAccess::NoAccess,
-        .LayoutBefore = EGfxTextureLayout::RenderTarget,
-        .LayoutAfter = EGfxTextureLayout::Present,
-    };
-    CommandList.Barrier({}, {}, TSpan<const FGfxTextureBarrier>(&ToPresent, 1));
+    TextureStates->Transition(Backbuffer, TextureStates::Present);
+    TextureStates->Flush(CommandList);
+    TextureStates->Unregister(Backbuffer);
 
     CommandList.EndEvent();
 }

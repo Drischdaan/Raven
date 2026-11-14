@@ -2,7 +2,10 @@
 
 #pragma once
 
+#include "RendererTypes.hpp"
 #include "RenderView.hpp"
+#include "Mesh/MeshData.hpp"
+#include "Scene/RenderScene.hpp"
 #include "Graphics/GfxTypes.hpp"
 #include "Core/Memory/SmartPointers.hpp"
 #include "Core/Memory/Containers/String.hpp"
@@ -14,6 +17,12 @@ class FWindow;
 class IGfxDevice;
 class IGfxSwapchain;
 class IGfxCommandList;
+class FUploadManager;
+class FMeshPool;
+class FGpuScene;
+class FTextureStateTracker;
+class FDebugMeshPass;
+struct FGpuViewConstants;
 
 struct FRendererDesc
 {
@@ -25,6 +34,8 @@ struct FRendererDesc
     bool8 bShaderDebugInfo = false;
     FString ShaderDirectory;
     FString ShaderCacheDirectory;
+    uint32 MaxVertices = 1u << 20;
+    uint32 MaxIndices = 1u << 22;
 };
 
 class RAVEN_API FRenderer
@@ -40,6 +51,14 @@ public:
     void Deinitialize();
 
     FResult Render(const FRenderView& View);
+
+    TResult<FMeshHandle> CreateMesh(const FMeshData& Data, FStringView Name);
+    void DestroyMesh(FMeshHandle Mesh);
+
+    [[nodiscard]] FRenderScene& GetScene()
+    {
+        return Scene;
+    }
 
     [[nodiscard]] IGfxDevice& GetDevice() const
     {
@@ -69,9 +88,11 @@ public:
 private:
     FResult ResolveDirectories();
     FResult CreatePipelines();
+    FResult CreateDepthTexture();
     FResult HandleResize();
     FResult RenderFrame(const FRenderView& View);
     void RecordFrame(IGfxCommandList& CommandList, FGfxTextureHandle Backbuffer, const FRenderView& View);
+    [[nodiscard]] FGpuViewConstants MakeViewConstants(const FRenderView& View) const;
 
 private:
     FRendererDesc Desc;
@@ -79,11 +100,21 @@ private:
     TUniquePtr<IGfxSwapchain> Swapchain = nullptr;
     FShaderLibrary ShaderLibrary;
     FPipelineCache PipelineCache;
+    FRenderScene Scene;
+
+    TUniquePtr<FUploadManager> Uploads;
+    TUniquePtr<FMeshPool> MeshPool;
+    TUniquePtr<FGpuScene> GpuScene;
+    TUniquePtr<FTextureStateTracker> TextureStates;
+    TUniquePtr<FDebugMeshPass> DebugMeshPass;
+
+    FGfxTextureHandle DepthTexture;
+    FMatrix4x4 PrevWorldToClip = FMatrix4x4::Identity();
+    float64 StartTime = 0.0;
+    float64 LastFrameTime = 0.0;
 
     uint32 Width = 0;
     uint32 Height = 0;
     bool8 bMinimized = false;
     bool8 bInitialized = false;
-
-    FGfxPipelineHandle FullscreenTestPipeline;
 };

@@ -11,9 +11,15 @@
 #include "Core/Memory/Memory.hpp"
 #include "Core/Memory/MemoryResource.hpp"
 #include "Core/Memory/MemoryTag.hpp"
+#include "Demo/DemoScene.hpp"
 #include "Platform/Window.hpp"
 
 FEngine* GEngine = nullptr;
+
+namespace
+{
+    TUniquePtr<FDemoScene> DemoScene;
+}
 
 void FEngine::Run()
 {
@@ -39,13 +45,16 @@ FResult FEngine::Start()
     Window = MakeShared<FWindow>(WindowSettings);
     Window->Show();
 
-    FRendererDesc RendererDesc = {.Window = Window};
+    FRendererDesc RendererDesc = {.Window = Window, .bVSync = false};
 #if defined(RAVEN_MODE_DEBUG)
     RendererDesc.bEnableDebugLayer = true;
     RendererDesc.bShaderDebugInfo = true;
 #endif
     Renderer = MakeUnique<FRenderer>();
     RESULT_CHECK(Renderer->Initialize(RendererDesc));
+
+    DemoScene = MakeUnique<FDemoScene>();
+    RESULT_CHECK(DemoScene->Initialize(*Renderer));
     return RESULT_OK_EMPTY();
 }
 
@@ -66,7 +75,11 @@ void FEngine::Loop()
             DispatchMessage(&Message);
         }
 
-        const FResult RenderResult = Renderer->Render(FRenderView{});
+        static const auto StartTime = std::chrono::steady_clock::now();
+        const float32 Time = std::chrono::duration<float32>(std::chrono::steady_clock::now() - StartTime).count();
+        const FRenderView View = DemoScene->Update(Time);
+
+        const FResult RenderResult = Renderer->Render(View);
         if (RenderResult.HasError())
         {
             RAVEN_LOG_ERROR(LogCore, RenderResult.GetError());
@@ -77,6 +90,11 @@ void FEngine::Loop()
 
 void FEngine::Stop()
 {
+    if (DemoScene != nullptr)
+    {
+        DemoScene->Deinitialize();
+        DemoScene.reset();
+    }
     Renderer.reset();
     Window.reset();
 }
