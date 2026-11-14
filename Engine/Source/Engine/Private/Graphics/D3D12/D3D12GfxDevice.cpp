@@ -49,13 +49,6 @@ namespace
     }
 }
 
-#define RETURN_IF_FAILED(ResultMethod) \
-    FResult RAVEN_UNIQUE_VARIABLE(Result) = ResultMethod; \
-    if(RAVEN_UNIQUE_VARIABLE(Result).HasError()) \
-    { \
-        return RAVEN_UNIQUE_VARIABLE(Result); \
-    }
-
 FResult FD3D12GfxDevice::Initialize(const FGfxDeviceDesc& InDeviceDesc)
 {
     if (bIsInitialized)
@@ -64,11 +57,11 @@ FResult FD3D12GfxDevice::Initialize(const FGfxDeviceDesc& InDeviceDesc)
     }
     DeviceDesc = InDeviceDesc;
 
-    RETURN_IF_FAILED(AcquireFactory())
-    RETURN_IF_FAILED(FindSuitableAdapter())
-    RETURN_IF_FAILED(CreateDevice())
-    RETURN_IF_FAILED(CheckFeatureSupport())
-    RETURN_IF_FAILED(CreateQueues())
+    RESULT_CHECK(AcquireFactory())
+    RESULT_CHECK(FindSuitableAdapter())
+    RESULT_CHECK(CreateDevice())
+    RESULT_CHECK(CheckFeatureSupport())
+    RESULT_CHECK(CreateQueues())
 
     DeletionQueue.Initialize(Queues);
     FrameIndex = 0;
@@ -78,7 +71,7 @@ FResult FD3D12GfxDevice::Initialize(const FGfxDeviceDesc& InDeviceDesc)
     CreateCommandListPools();
 
     bIsInitialized = true;
-    return RESULT_OK(FResult());
+    return RESULT_OK_EMPTY();
 }
 
 void FD3D12GfxDevice::Deinitialize()
@@ -223,12 +216,8 @@ FResult FD3D12GfxDevice::AcquireFactory()
     {
         FactoryCreateFlags = DXGI_CREATE_FACTORY_DEBUG;
     }
-    const HRESULT NativeResult = CreateDXGIFactory2(FactoryCreateFlags, IID_PPV_ARGS(&Factory));
-    if (FAILED(NativeResult))
-    {
-        return RESULT_PLATFORM_ERROR("Unable to create dxgi factory");
-    }
-    return RESULT_OK(FResult());
+    RESULT_TRY_PLATFORM_CALL(CreateDXGIFactory2(FactoryCreateFlags, IID_PPV_ARGS(&Factory)), "Unable to create dxgi factory")
+    return RESULT_OK_EMPTY();
 }
 
 FResult FD3D12GfxDevice::FindSuitableAdapter()
@@ -237,13 +226,7 @@ FResult FD3D12GfxDevice::FindSuitableAdapter()
     for (uint32 Index = 0; Factory->EnumAdapterByGpuPreference(Index, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&TempAdapter)) != DXGI_ERROR_NOT_FOUND; ++Index)
     {
         DXGI_ADAPTER_DESC3 AdapterDesc = {};
-        const HRESULT NativeResult = TempAdapter->GetDesc3(&AdapterDesc);
-        if (FAILED(NativeResult))
-        {
-            TempAdapter.Reset();
-            return RESULT_PLATFORM_ERROR("Failed to get adapter description");
-        }
-
+        RESULT_TRY_PLATFORM_CALL_CLEANUP(TempAdapter->GetDesc3(&AdapterDesc), TempAdapter.Reset();, "Failed to get adapter description")
         if ((AdapterDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE) == DXGI_ADAPTER_FLAG3_SOFTWARE)
         {
             TempAdapter.Reset();
@@ -262,7 +245,7 @@ FResult FD3D12GfxDevice::FindSuitableAdapter()
         return RESULT_ERROR("Unable to find suitable adapter");
     }
     Adapter = TempAdapter;
-    return RESULT_OK(FResult());
+    return RESULT_OK_EMPTY();
 }
 
 FResult FD3D12GfxDevice::CreateDevice()
@@ -292,20 +275,15 @@ FResult FD3D12GfxDevice::CreateDevice()
         return RESULT_ERROR("Adapter must at least support feature level 12.0");
     }
     FeatureLevel = HighestSupportedFeatureLevel;
-
-    const HRESULT NativeResult = D3D12CreateDevice(Adapter.Get(), FeatureLevel, IID_PPV_ARGS(&Device));
-    if (FAILED(NativeResult))
-    {
-        return RESULT_PLATFORM_ERROR("Failed to create D3D12 device");
-    }
+    RESULT_TRY_PLATFORM_CALL_CLEANUP(D3D12CreateDevice(Adapter.Get(), FeatureLevel, IID_PPV_ARGS(&Device)), Device.Reset();, "Failed to create D3D12 device")
     std::println("Created device with feature level {}", FeatureLevelToString(FeatureLevel));
-    return RESULT_OK(FResult());
+    return RESULT_OK_EMPTY();
 }
 
 FResult FD3D12GfxDevice::CheckFeatureSupport()
 {
     BOOL bSupportsTearing = FALSE;
-    HRESULT NativeResult = Factory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &bSupportsTearing, sizeof(bSupportsTearing));
+    const HRESULT NativeResult = Factory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &bSupportsTearing, sizeof(bSupportsTearing));
     if (FAILED(NativeResult))
     {
         bSupportsTearing = FALSE;
@@ -313,35 +291,19 @@ FResult FD3D12GfxDevice::CheckFeatureSupport()
     Capabilities.bSupportsTearing = bSupportsTearing;
 
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 Options5 = {};
-    NativeResult = Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &Options5, sizeof(Options5));
-    if (FAILED(NativeResult))
-    {
-        return RESULT_PLATFORM_ERROR("Failed to check feature options");
-    }
+    RESULT_TRY_PLATFORM_CALL(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &Options5, sizeof(Options5)), "Failed to check feature options")
     Capabilities.bSupportsRayTracing = Options5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_0;
 
     D3D12_FEATURE_DATA_D3D12_OPTIONS6 Options6 = {};
-    NativeResult = Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS6, &Options6, sizeof(Options6));
-    if (FAILED(NativeResult))
-    {
-        return RESULT_PLATFORM_ERROR("Failed to check feature options");
-    }
+    RESULT_TRY_PLATFORM_CALL(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS6, &Options6, sizeof(Options6)), "Failed to check feature options")
     Capabilities.bSupportsVariableRateShading = Options6.VariableShadingRateTier >= D3D12_VARIABLE_SHADING_RATE_TIER_1;
 
     D3D12_FEATURE_DATA_D3D12_OPTIONS7 Options7 = {};
-    NativeResult = Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &Options7, sizeof(Options7));
-    if (FAILED(NativeResult))
-    {
-        return RESULT_PLATFORM_ERROR("Failed to check feature options");
-    }
+    RESULT_TRY_PLATFORM_CALL(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &Options7, sizeof(Options7)), "Failed to check feature options")
     Capabilities.bSupportsMeshShaders = Options7.MeshShaderTier >= D3D12_MESH_SHADER_TIER_1;
 
     D3D12_FEATURE_DATA_D3D12_OPTIONS16 Options16 = {};
-    NativeResult = Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS16, &Options16, sizeof(Options16));
-    if (FAILED(NativeResult))
-    {
-        return RESULT_PLATFORM_ERROR("Failed to check feature options");
-    }
+    RESULT_TRY_PLATFORM_CALL(Device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS16, &Options16, sizeof(Options16)), "Failed to check feature options")
     Capabilities.bSupportsGpuUploadHeap = Options16.GPUUploadHeapSupported;
 
     std::println("Device Capabilities:");
@@ -351,16 +313,16 @@ FResult FD3D12GfxDevice::CheckFeatureSupport()
     std::println(" - MeshShaders: {}", Capabilities.bSupportsMeshShaders);
     std::println(" - GpuUploadHeap: {}", Capabilities.bSupportsGpuUploadHeap);
 
-    return RESULT_OK(FResult());
+    return RESULT_OK_EMPTY();
 }
 
 FResult FD3D12GfxDevice::CreateQueues()
 {
     for (uint8 Index = 0; Index < static_cast<uint8>(EGfxQueueType::Count); ++Index)
     {
-        RETURN_IF_FAILED(Queues[Index].Initialize(Device.Get(), static_cast<EGfxQueueType>(Index)))
+        RESULT_CHECK(Queues[Index].Initialize(Device.Get(), static_cast<EGfxQueueType>(Index)))
     }
-    return RESULT_OK(FResult());
+    return RESULT_OK_EMPTY();
 }
 
 void FD3D12GfxDevice::CreateCommandListPools()

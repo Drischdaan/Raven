@@ -12,7 +12,7 @@ struct TSmartDeleter
 {
     constexpr TSmartDeleter() noexcept = default;
 
-    template <typename TOther> requires std::is_convertible_v<TOther*, T>
+    template <typename TOther> requires std::is_convertible_v<TOther*, T*>
     constexpr TSmartDeleter(const TSmartDeleter<TOther>&) noexcept
     {
     }

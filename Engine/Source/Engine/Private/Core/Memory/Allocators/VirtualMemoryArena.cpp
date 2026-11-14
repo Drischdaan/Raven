@@ -77,7 +77,7 @@ FResult FVirtualMemoryArena::Initialize(const size64 InReserveSize, const size64
     CommittedBlockSize = AlignUp(InCommitBlockSize == 0 ? DefaultCommitBlockSize : InCommitBlockSize, PageSize);
     CommittedSize = 0;
     Offset = 0;
-    return RESULT_OK(FResult());
+    return RESULT_OK_EMPTY();
 }
 
 void FVirtualMemoryArena::Deinitialize()

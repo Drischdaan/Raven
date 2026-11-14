@@ -39,21 +39,15 @@ FResult FD3D12GfxQueue::Initialize(ID3D12Device* InDevice, const EGfxQueueType I
     QueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_HIGH;
     QueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 
-    if (FAILED(InDevice->CreateCommandQueue(&QueueDesc, IID_PPV_ARGS(&CommandQueue))))
-    {
-        return RESULT_PLATFORM_ERROR("Failed to create command queue");
-    }
-    if (FAILED(InDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence))))
-    {
-        return RESULT_PLATFORM_ERROR("Failed to create fence");
-    }
+    RESULT_TRY_PLATFORM_CALL(InDevice->CreateCommandQueue(&QueueDesc, IID_PPV_ARGS(&CommandQueue)), "Failed to create command queue")
+    RESULT_TRY_PLATFORM_CALL(InDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence)), "Failed to create fence")
 
     CommandQueue->SetName(ToD3D12QueueName(QueueType));
     Fence->SetName(ToD3D12QueueName(QueueType));
 
     NextValue = 1;
     LastCompletedValue = 0;
-    return RESULT_OK(FResult());
+    return RESULT_OK_EMPTY();
 }
 
 void FD3D12GfxQueue::Deinitialize()

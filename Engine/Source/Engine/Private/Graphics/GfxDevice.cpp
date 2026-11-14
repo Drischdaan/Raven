@@ -10,12 +10,8 @@ TResult<TSharedPtr<IGfxDevice>> CreateGfxDevice(const FGfxDeviceDesc& DeviceDesc
     {
     case EGfxBackend::D3D12:
         {
-            TSharedPtr<IGfxDevice> Device = MakeShared<FD3D12GfxDevice>();
-            FResult Result = Device->Initialize(DeviceDesc);
-            if (Result.HasError())
-            {
-                return std::unexpected(std::move(Result).error());
-            }
+            TSharedPtr<FD3D12GfxDevice> Device = MakeShared<FD3D12GfxDevice>();
+            RESULT_CHECK(Device->Initialize(DeviceDesc))
             return RESULT_OK(Device);
         }
     case EGfxBackend::Null:
