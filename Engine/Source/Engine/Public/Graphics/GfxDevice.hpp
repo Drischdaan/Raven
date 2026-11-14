@@ -9,6 +9,7 @@
 #include "Core/Memory/Containers/String.hpp"
 #include "Core/Utility/Result.hpp"
 
+class IGfxSwapchain;
 class FWindow;
 struct FGfxShaderDesc;
 struct FGfxGraphicsPipelineDesc;
@@ -21,8 +22,8 @@ struct FGfxSubmitDesc
     EGfxQueueType QueueType;
     TSpan<IGfxCommandList* const> CommandLists;
     TSpan<const FGfxSyncPoint> WaitFor;
-    IGfxCommandList* WaitForAcquire = nullptr;
-    IGfxCommandList* SignalForPresent = nullptr;
+    IGfxSwapchain* WaitForAcquire = nullptr;
+    IGfxSwapchain* SignalForPresent = nullptr;
 };
 
 struct RAVEN_API FGfxDeviceDesc
@@ -57,7 +58,7 @@ public:
 
     virtual TResult<FGfxBufferHandle> CreateBuffer(const FGfxBufferDesc& BufferDesc, FStringView DebugName = "UnnamedBuffer") = 0;
     virtual TResult<FGfxTextureHandle> CreateTexture(const FGfxTextureDesc& BufferDesc, FStringView DebugName = "UnnamedTexture") = 0;
-    virtual TResult<FGfxTextureViewHandle> CreateTexture(FGfxTextureHandle TextureHandle, const FGfxTextureViewDesc& TextureViewDesc) = 0;
+    virtual TResult<FGfxTextureViewHandle> CreateTextureView(FGfxTextureHandle TextureHandle, const FGfxTextureViewDesc& TextureViewDesc) = 0;
     virtual TResult<FGfxSamplerHandle> GetOrCreateSampler(const FGfxSamplerDesc& SamplerDesc) = 0;
 
     virtual void DestroyBuffer(FGfxBufferHandle BufferHandle) = 0;
@@ -75,9 +76,9 @@ public:
     // virtual TResult<FGfxShaderHandle> CreateShader(const FGfxShaderDesc& ShaderDesc) = 0;
     // virtual TResult<FGfxPipelineHandle> CreateGraphicsPipeline(const FGfxGraphicsPipelineDesc& GraphicsPipelineDesc, FStringView DebugName = "UnnamedGraphicsPipeline") = 0;
     // virtual TResult<FGfxPipelineHandle> CreateComputePipeline(const FGfxComputePipelineDesc& ComputePipelineDesc, FStringView DebugName = "UnnamedComputePipeline") = 0;
-    //
-    // virtual TResult<TUniquePtr<IGfxCommandList>> CreateSwapchain(const FGfxSwapchainDesc& SwapchainDesc) = 0;
-    //
+
+    virtual TResult<TUniquePtr<IGfxSwapchain>> CreateSwapchain(const FGfxSwapchainDesc& SwapchainDesc) = 0;
+
     [[nodiscard]] virtual IGfxCommandList* AcquireCommandList(EGfxQueueType QueueType) = 0;
     virtual FGfxSyncPoint Submit(const FGfxSubmitDesc& SubmitDesc) = 0;
     virtual void WaitForSyncPoint(FGfxSyncPoint SyncPoint) = 0;

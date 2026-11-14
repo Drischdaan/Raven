@@ -7,6 +7,7 @@
 #include "Core/Utility/Macros.hpp"
 #include "Graphics/D3D12/D3D12Conversions.hpp"
 #include "Graphics/D3D12/D3D12GfxCommandList.hpp"
+#include "Graphics/D3D12/D3D12Swapchain.hpp"
 
 namespace
 {
@@ -261,6 +262,13 @@ FResult FD3D12GfxDevice::Initialize(const FGfxDeviceDesc& InDeviceDesc)
 
     bIsInitialized = true;
     return RESULT_OK_EMPTY();
+}
+
+FD3D12GfxDevice::~FD3D12GfxDevice()
+{
+    // Members would otherwise be destroyed in reverse declaration order: the descriptor heaps
+    // before the command list pools, whose command lists free their RTV/DSV slots into them.
+    Deinitialize();
 }
 
 void FD3D12GfxDevice::Deinitialize()
@@ -596,6 +604,12 @@ void FD3D12GfxDevice::DestroyBuffer(const FGfxBufferHandle BufferHandle)
 
 void FD3D12GfxDevice::DestroyTexture(const FGfxTextureHandle TextureHandle)
 {
+    if (const FD3D12Texture* Texture = Textures.Get(TextureHandle); Texture != nullptr && Texture->bIsSwapchainImage)
+    {
+        std::println("DestroyTexture: swapchain back buffers are owned by their swapchain");
+        return;
+    }
+
     TResult<FD3D12Texture> Removed = Textures.Remove(TextureHandle);
     if (Removed.HasError())
     {
@@ -736,6 +750,13 @@ FGfxTextureCopyLayout FD3D12GfxDevice::GetCopyLayout(const FGfxTextureHandle Tex
     };
 }
 
+TResult<TUniquePtr<IGfxSwapchain>> FD3D12GfxDevice::CreateSwapchain(const FGfxSwapchainDesc& SwapchainDesc)
+{
+    TUniquePtr<FD3D12GfxSwapchain> Swapchain = MakeUnique<FD3D12GfxSwapchain>(*this);
+    RESULT_CHECK(Swapchain->Initialize(SwapchainDesc))
+    return RESULT_OK(TUniquePtr<IGfxSwapchain>(std::move(Swapchain)));
+}
+
 IGfxCommandList* FD3D12GfxDevice::AcquireCommandList(EGfxQueueType QueueType)
 {
     return CommandListPools[static_cast<uint8>(QueueType)].Acquire();
@@ -743,6 +764,12 @@ IGfxCommandList* FD3D12GfxDevice::AcquireCommandList(EGfxQueueType QueueType)
 
 FGfxSyncPoint FD3D12GfxDevice::Submit(const FGfxSubmitDesc& SubmitDesc)
 {
+    if ((SubmitDesc.WaitForAcquire != nullptr || SubmitDesc.SignalForPresent != nullptr) && SubmitDesc.QueueType != EGfxQueueType::Graphics)
+    {
+        std::println("Submit: swapchain images can only be acquired and presented on the graphics queue");
+        return {};
+    }
+
     if (SubmitDesc.CommandLists.size() > MaxCommandListsPerSubmit)
     {
         std::println("Submit: too many command lists ({} > {})", SubmitDesc.CommandLists.size(), MaxCommandListsPerSubmit);
@@ -841,6 +868,65 @@ uint32 FD3D12GfxDevice::GetFrameSlot() const
 void FD3D12GfxDevice::DeferRelease(TComPtr<IUnknown> Object, FD3D12DeferredDeletionQueue::FReleaseCallback OnRelease)
 {
     DeletionQueue.Enqueue(std::move(Object), std::move(OnRelease));
+}
+
+TResult<FGfxTextureHandle> FD3D12GfxDevice::RegisterSwapchainImage(TComPtr<ID3D12Resource> Resource, const EGfxFormat Format, const FStringView DebugName)
+{
+    const D3D12_RESOURCE_DESC NativeDesc = Resource->GetDesc();
+
+    FD3D12Texture Texture;
+    Texture.Resource = std::move(Resource);
+    Texture.NativeDesc = D3D12_RESOURCE_DESC1{
+        .Dimension = NativeDesc.Dimension,
+        .Alignment = NativeDesc.Alignment,
+        .Width = NativeDesc.Width,
+        .Height = NativeDesc.Height,
+        .DepthOrArraySize = NativeDesc.DepthOrArraySize,
+        .MipLevels = NativeDesc.MipLevels,
+        .Format = NativeDesc.Format,
+        .SampleDesc = NativeDesc.SampleDesc,
+        .Layout = NativeDesc.Layout,
+        .Flags = NativeDesc.Flags,
+        .SamplerFeedbackMipRegion = {},
+    };
+    Texture.Desc = FGfxTextureDesc{
+        .Width = static_cast<uint32>(NativeDesc.Width),
+        .Height = NativeDesc.Height,
+        .DepthOrArraySize = 1,
+        .MipLevels = 1,
+        .SampleCount = 1,
+        .Format = Format,
+        .Dimension = EGfxTextureDimension::Texture2D,
+        .Usage = EGfxTextureUsage::RenderTarget | EGfxTextureUsage::CopySource | EGfxTextureUsage::CopyDestination,
+    };
+    Texture.bIsSwapchainImage = true;
+    SetD3D12DebugName(Texture.Resource.Get(), DebugName);
+
+    return Textures.Allocate(std::move(Texture));
+}
+
+void FD3D12GfxDevice::UnregisterSwapchainImage(const FGfxTextureHandle TextureHandle)
+{
+    const TResult<FD3D12Texture> Removed = Textures.Remove(TextureHandle);
+    if (Removed.HasError())
+    {
+        std::println("UnregisterSwapchainImage: {}", Removed.GetError().Message);
+    }
+}
+
+IDXGIFactory7* FD3D12GfxDevice::GetFactory() const
+{
+    return Factory.Get();
+}
+
+const FGfxDeviceCapabilities& FD3D12GfxDevice::GetCapabilities() const
+{
+    return Capabilities;
+}
+
+uint32 FD3D12GfxDevice::GetFramesInFlight() const
+{
+    return DeviceDesc.FramesInFlight;
 }
 
 ID3D12Device15* FD3D12GfxDevice::GetNativeDevice() const

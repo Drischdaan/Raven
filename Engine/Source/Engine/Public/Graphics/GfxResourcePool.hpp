@@ -50,7 +50,7 @@ public:
     template <typename... TArguments> requires std::is_constructible_v<TResource, TArguments...>
     [[nodiscard]] TResult<THandle> Allocate(TArguments&&... Arguments)
     {
-        std::scoped_lock Lock(Lock);
+        std::scoped_lock Lock(Mutex);
 
         uint32 Index;
         if (!FreeIndices.empty())
@@ -94,7 +94,7 @@ public:
 
     [[nodiscard]] TResult<TResource> Remove(const THandle Handle)
     {
-        std::scoped_lock Lock(Lock);
+        std::scoped_lock Lock(Mutex);
 
         FSlot* Slot = FindSlot(Handle);
         if (Slot == nullptr)
@@ -113,7 +113,7 @@ public:
     [[nodiscard]] TResource* Get(const THandle Handle)
     {
         FSlot* Slot = FindSlot(Handle);
-        return Slot != nullptr ? Slot->Resource : nullptr;
+        return Slot != nullptr ? &*Slot->Resource : nullptr;
     }
 
     [[nodiscard]] const TResource* Get(const THandle Handle) const
@@ -128,14 +128,14 @@ public:
 
     [[nodiscard]] uint32 GetAliveCount() const
     {
-        std::scoped_lock Lock(Lock);
+        std::scoped_lock Lock(Mutex);
         return AliveCount;
     }
 
     template <typename TFunction>
     void ForEachAlive(TFunction&& Function)
     {
-        std::scoped_lock Lock(Lock);
+        std::scoped_lock Lock(Mutex);
 
         TFunction TempFunction = std::forward<TFunction>(Function);
         for (uint32 Index = 0; Index < NextUnusedIndex; ++Index)
@@ -155,7 +155,7 @@ public:
 
     void Clear()
     {
-        std::scoped_lock Lock(Lock);
+        std::scoped_lock Lock(Mutex);
         for (std::atomic<FPage*>& PageSlot : Pages)
         {
             FPage* Page = PageSlot.exchange(nullptr, std::memory_order_acq_rel);

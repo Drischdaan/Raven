@@ -24,6 +24,8 @@ public:
     FGfxSyncPoint Submit(TSpan<ID3D12CommandList* const> CommandLists, TSpan<const FGfxSyncPoint> WaitFor, const FD3D12GfxDevice& OwningDevice);
     FGfxSyncPoint Signal();
 
+    [[nodiscard]] HRESULT Present(IDXGISwapChain4* Swapchain, uint32 SyncInterval, uint32 Flags);
+
     void GpuWait(ID3D12Fence* OtherFence, uint64 Value);
 
     [[nodiscard]] bool8 IsComplete(uint64 Value);

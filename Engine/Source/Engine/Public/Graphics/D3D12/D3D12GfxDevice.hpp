@@ -26,6 +26,8 @@ public:
     static constexpr uint32 MaxFramesInFlight = 4;
 
 public:
+    ~FD3D12GfxDevice() override;
+
     FResult Initialize(const FGfxDeviceDesc& InDeviceDesc) override;
     void Deinitialize() override;
 
@@ -60,8 +62,9 @@ public:
     // TResult<FGfxShaderHandle> CreateShader(const FGfxShaderDesc& ShaderDesc) override;
     // TResult<FGfxPipelineHandle> CreateGraphicsPipeline(const FGfxGraphicsPipelineDesc& GraphicsPipelineDesc, FStringView DebugName) override;
     // TResult<FGfxPipelineHandle> CreateComputePipeline(const FGfxComputePipelineDesc& ComputePipelineDesc, FStringView DebugName) override;
-    // TResult<TUniquePtr<IGfxCommandList>> CreateSwapchain(const FGfxSwapchainDesc& SwapchainDesc) override;
-    //
+
+    TResult<TUniquePtr<IGfxSwapchain>> CreateSwapchain(const FGfxSwapchainDesc& SwapchainDesc) override;
+
     [[nodiscard]] IGfxCommandList* AcquireCommandList(EGfxQueueType QueueType) override;
     FGfxSyncPoint Submit(const FGfxSubmitDesc& SubmitDesc) override;
     void WaitForSyncPoint(FGfxSyncPoint SyncPoint) override;
@@ -75,6 +78,12 @@ public:
     [[nodiscard]] uint32 GetFrameSlot() const;
     void DeferRelease(TComPtr<IUnknown> Object, FD3D12DeferredDeletionQueue::FReleaseCallback OnRelease = {});
 
+    [[nodiscard]] TResult<FGfxTextureHandle> RegisterSwapchainImage(TComPtr<ID3D12Resource> Resource, EGfxFormat Format, FStringView DebugName);
+    void UnregisterSwapchainImage(FGfxTextureHandle TextureHandle);
+
+    [[nodiscard]] IDXGIFactory7* GetFactory() const;
+    [[nodiscard]] const FGfxDeviceCapabilities& GetCapabilities() const;
+    [[nodiscard]] uint32 GetFramesInFlight() const;
     [[nodiscard]] ID3D12Device15* GetNativeDevice() const;
     [[nodiscard]] FGfxTransientAllocation AllocateTransient(uint64 Size, uint64 Alignment);
 

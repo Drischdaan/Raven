@@ -88,6 +88,12 @@ FGfxSyncPoint FD3D12GfxQueue::Signal()
     return FGfxSyncPoint{QueueType, SignalLocked()};
 }
 
+HRESULT FD3D12GfxQueue::Present(IDXGISwapChain4* Swapchain, const uint32 SyncInterval, const uint32 Flags)
+{
+    std::scoped_lock Lock(SubmitMutex);
+    return Swapchain->Present(SyncInterval, Flags);
+}
+
 void FD3D12GfxQueue::GpuWait(ID3D12Fence* OtherFence, const uint64 Value)
 {
     std::scoped_lock Lock(SubmitMutex);

@@ -7,6 +7,7 @@
 #include "Core/CoreTypes.hpp"
 #include "Core/Memory/SmartPointers.hpp"
 
+class IGfxSwapchain;
 class IGfxDevice;
 class FWindow;
 
@@ -21,11 +22,14 @@ private:
     void Loop();
     void Stop();
 
+    void RenderFrame();
+
 private:
     std::atomic<bool8> bShouldRun = true;
 
     TSharedPtr<FWindow> Window = nullptr;
     TSharedPtr<IGfxDevice> GfxDevice = nullptr;
+    TUniquePtr<IGfxSwapchain> Swapchain = nullptr;
 };
 
 extern RAVEN_API FEngine* GEngine;
