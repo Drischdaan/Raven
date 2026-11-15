@@ -323,7 +323,7 @@ void FD3D12GfxDevice::Deinitialize()
     {
         DescriptorHeap.Deinitialize();
     }
-    ShutdownInfoQueue(); // the info queue holds a reference to the device
+    ShutdownInfoQueue();
     Device.Reset();
     Adapter.Reset();
     Factory.Reset();
@@ -1425,7 +1425,6 @@ FResult FD3D12GfxDevice::CreateDescriptorHeaps()
 
 void FD3D12GfxDevice::WriteDefaultDescriptors()
 {
-    // Resource index 0: null Texture2D SRV. Loads and samples return 0.
     D3D12_SHADER_RESOURCE_VIEW_DESC NullSrvDesc = {};
     NullSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     NullSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -1433,7 +1432,6 @@ void FD3D12GfxDevice::WriteDefaultDescriptors()
     NullSrvDesc.Texture2D.MipLevels = 1;
     Device->CreateShaderResourceView(nullptr, &NullSrvDesc, GetDescriptorHeap(ED3D12DescriptorHeapType::Resource).GetDescriptor(D3D12NullResourceIndex).CpuHandle);
 
-    // Sampler index 0: trilinear wrap.
     D3D12_SAMPLER_DESC DefaultSamplerDesc = {};
     DefaultSamplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
     DefaultSamplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -1534,6 +1532,10 @@ void FD3D12GfxDevice::ReportAndReleaseLeakedResources()
     }
     Pipelines.Clear();
     Shaders.Clear();
+    Samplers.ForEachAlive([this](FGfxSamplerHandle, const FD3D12Sampler& Sampler)
+    {
+        GetDescriptorHeap(ED3D12DescriptorHeapType::Sampler).Free(Sampler.DescriptorIndex);
+    });
     Samplers.Clear();
     TextureViews.Clear();
     Textures.Clear();

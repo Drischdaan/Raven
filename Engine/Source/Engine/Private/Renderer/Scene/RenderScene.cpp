@@ -35,7 +35,7 @@ TResult<FInstanceId> FRenderScene::AddInstance(const FInstanceDesc& Desc)
     ++Slot.Generation;
 
     const FInstanceId Id = {.Index = SlotIndex, .Generation = Slot.Generation};
-    Instances.push_back({.Id = Id, .Mesh = Desc.Mesh, .Transform = Desc.Transform, .Color = Desc.Color});
+    Instances.push_back({.Id = Id, .Mesh = Desc.Mesh, .Material = Desc.Material, .Transform = Desc.Transform});
     DirtyFlags.push_back(false);
     MarkDirty(Slot.DenseIndex);
     return Id;
@@ -79,11 +79,11 @@ void FRenderScene::SetTransform(const FInstanceId Id, const FMatrix4x4& Transfor
     }
 }
 
-void FRenderScene::SetColor(const FInstanceId Id, const FLinearColor& Color)
+void FRenderScene::SetMaterial(const FInstanceId Id, const FMaterialHandle Material)
 {
     if (FInstance* Instance = Find(Id); Instance != nullptr)
     {
-        Instance->Color = Color;
+        Instance->Material = Material;
         MarkDirty(Slots[Id.Index].DenseIndex);
     }
 }

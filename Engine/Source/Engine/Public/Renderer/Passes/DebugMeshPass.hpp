@@ -8,6 +8,7 @@
 class IGfxCommandList;
 class FPipelineCache;
 class FMeshPool;
+class FMaterialSystem;
 class FRenderScene;
 
 struct FDebugMeshPassInputs
@@ -21,8 +22,10 @@ class FDebugMeshPass
 public:
     FResult Initialize(FPipelineCache& PipelineCache, EGfxFormat ColorFormat, EGfxFormat DepthFormat);
 
-    void Render(IGfxCommandList& CommandList, const FDebugMeshPassInputs& Inputs, const FRenderScene& Scene, const FMeshPool& MeshPool) const;
+    void Render(IGfxCommandList& CommandList, const FDebugMeshPassInputs& Inputs, const FRenderScene& Scene,
+                const FMeshPool& MeshPool, const FMaterialSystem& Materials) const;
 
 private:
     FGfxPipelineHandle Pipeline;
+    FGfxPipelineHandle TwoSidedPipeline;
 };

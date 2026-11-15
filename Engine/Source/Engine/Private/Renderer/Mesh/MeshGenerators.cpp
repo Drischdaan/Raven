@@ -23,7 +23,7 @@ namespace
 
                 Mesh.Positions.push_back(Position);
                 Mesh.Normals.push_back(Normal);
-                Mesh.Tangents.push_back(FVector4::FromVector3(Right, 1.0f)); // +U = Right, +V = -Up = Cross(N, Right)
+                Mesh.Tangents.push_back(FVector4::FromVector3(Right, 1.0f));
                 Mesh.TexCoords.push_back({.X = U, .Y = V});
             }
         }

@@ -134,8 +134,8 @@ public:
         FMatrix4x4 Result;
         Result.Columns[0] = {.X = XScale, .Y = 0.0f, .Z = 0.0f, .W = 0.0f};
         Result.Columns[1] = {.X = 0.0f, .Y = YScale, .Z = 0.0f, .W = 0.0f};
-        Result.Columns[2] = {.X = 0.0f, .Y = 0.0f, .Z = 0.0f, .W = 1.0f}; // ClipW = ViewZ
-        Result.Columns[3] = {.X = 0.0f, .Y = 0.0f, .Z = Near, .W = 0.0f}; // ClipZ = Near
+        Result.Columns[2] = {.X = 0.0f, .Y = 0.0f, .Z = 0.0f, .W = 1.0f};
+        Result.Columns[3] = {.X = 0.0f, .Y = 0.0f, .Z = Near, .W = 0.0f};
         return Result;
     }
 

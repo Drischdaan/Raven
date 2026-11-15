@@ -24,8 +24,6 @@ public:
             bOverflowed = true;
             return;
         }
-        // std::addressof, not &: CD3DX12 subobjects overload operator& to return the inner struct,
-        // which would skip the subobject type tag and shift the whole stream.
         std::memcpy(Data + Offset, std::addressof(Subobject), sizeof(TSubobject));
         Size = Offset + sizeof(TSubobject);
     }

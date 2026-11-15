@@ -50,7 +50,7 @@ struct FGfxDepthStencilAttachment
 
 struct FGfxRenderingDesc
 {
-    TSpan<const FGfxRenderTargetAttachment> RenderTargets; // <= GfxMaxRenderTargets, only read during the call
+    TSpan<const FGfxRenderTargetAttachment> RenderTargets;
     std::optional<FGfxDepthStencilAttachment> DepthStencil;
 };
 

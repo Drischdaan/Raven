@@ -4,10 +4,13 @@
 
 #include "Renderer/RendererTypes.hpp"
 #include "Renderer/RenderView.hpp"
+#include "Core/Memory/Containers/String.hpp"
 #include "Core/Memory/Containers/Vector.hpp"
 #include "Core/Utility/Result.hpp"
 
 class FRenderer;
+struct FTextureBuilder;
+struct FMaterialDesc;
 
 class FDemoScene
 {
@@ -25,10 +28,15 @@ private:
         float32 Speed = 1.0f;
     };
 
+    TResult<FTextureHandle> AddTexture(FTextureBuilder Builder, FStringView Name);
+    TResult<FMaterialHandle> AddMaterial(const FMaterialDesc& Desc, FStringView Name);
+
     FRenderer* Renderer = nullptr;
     FMeshHandle CubeMesh;
     FMeshHandle SphereMesh;
     FMeshHandle PlaneMesh;
+    TVector<FTextureHandle> Textures;
+    TVector<FMaterialHandle> Materials;
     FInstanceId Ground;
     TVector<FSpinner> Spinners;
 };

@@ -10,6 +10,7 @@
 class IGfxDevice;
 class FUploadManager;
 class FMeshPool;
+class FMaterialSystem;
 class FRenderScene;
 
 class FGpuScene
@@ -24,7 +25,7 @@ public:
     FResult Initialize(IGfxDevice& InDevice, FUploadManager& InUploads, uint32 InMaxInstances);
     void Deinitialize();
 
-    void Update(FRenderScene& Scene, const FMeshPool& MeshPool);
+    void Update(FRenderScene& Scene, const FMeshPool& MeshPool, const FMaterialSystem& Materials);
 
     [[nodiscard]] FGfxBufferHandle GetInstanceBuffer() const
     {

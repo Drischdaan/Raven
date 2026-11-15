@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Renderer/RendererTypes.hpp"
-#include "Core/Math/Color.hpp"
 #include "Core/Math/Matrix4x4.hpp"
 #include "Core/Memory/Containers/Span.hpp"
 #include "Core/Memory/Containers/Vector.hpp"
@@ -12,8 +11,8 @@
 struct FInstanceDesc
 {
     FMeshHandle Mesh;
+    FMaterialHandle Material;
     FMatrix4x4 Transform = FMatrix4x4::Identity();
-    FLinearColor Color = {.R = 1.0f, .G = 1.0f, .B = 1.0f, .A = 1.0f};
 };
 
 class RAVEN_API FRenderScene
@@ -25,8 +24,8 @@ public:
     {
         FInstanceId Id;
         FMeshHandle Mesh;
+        FMaterialHandle Material;
         FMatrix4x4 Transform;
-        FLinearColor Color;
     };
 
 public:
@@ -36,7 +35,7 @@ public:
     TResult<FInstanceId> AddInstance(const FInstanceDesc& Desc);
     void RemoveInstance(FInstanceId Id);
     void SetTransform(FInstanceId Id, const FMatrix4x4& Transform);
-    void SetColor(FInstanceId Id, const FLinearColor& Color);
+    void SetMaterial(FInstanceId Id, FMaterialHandle Material);
     [[nodiscard]] bool8 IsValid(FInstanceId Id) const;
 
     [[nodiscard]] TSpan<const FInstance> GetInstances() const

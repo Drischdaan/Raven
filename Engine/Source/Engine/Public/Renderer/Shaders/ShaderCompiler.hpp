@@ -5,8 +5,8 @@
 #include <filesystem>
 
 #include <Windows.h>
-#include <Unknwnbase.h> // IUnknown: WIN32_LEAN_AND_MEAN strips it, and dxcapi.h needs it first
-#include <OleAuto.h>    // BSTR
+#include <Unknwnbase.h>
+#include <OleAuto.h>
 #include <dxcapi.h>
 #include <wrl/client.h>
 

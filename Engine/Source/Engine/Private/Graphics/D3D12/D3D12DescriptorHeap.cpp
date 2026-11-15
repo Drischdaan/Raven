@@ -54,7 +54,6 @@ void FD3D12DescriptorHeap::Deinitialize()
     AllocationStates.clear();
     NextUnusedIndex = 0;
     AllocatedCount = 0;
-    // Free() checks indices against Capacity; with AllocationStates cleared, a stale Capacity would index out of bounds.
     Capacity = 0;
     ReservedCount = 0;
     Heap.Reset();

@@ -3,9 +3,9 @@
 #include "Renderer/Scene/GpuScene.hpp"
 
 #include <algorithm>
-#include <cmath>
 
 #include "Graphics/GfxDevice.hpp"
+#include "Renderer/Material/MaterialSystem.hpp"
 #include "Renderer/Mesh/MeshPool.hpp"
 #include "Renderer/Scene/RenderScene.hpp"
 #include "Renderer/Utility/UploadManager.hpp"
@@ -13,16 +13,7 @@
 
 namespace
 {
-    uint32 PackColor(const FLinearColor& Color)
-    {
-        const auto ToByte = [](const float32 Value)
-        {
-            return static_cast<uint32>(std::lround(Math::Clamp(Value, 0.0f, 1.0f) * 255.0f));
-        };
-        return ToByte(Color.R) | (ToByte(Color.G) << 8) | (ToByte(Color.B) << 16) | (ToByte(Color.A) << 24);
-    }
-
-    FGpuInstance MakeGpuInstance(const FRenderScene::FInstance& Instance, const FMeshPool& MeshPool)
+    FGpuInstance MakeGpuInstance(const FRenderScene::FInstance& Instance, const FMeshPool& MeshPool, const FMaterialSystem& Materials)
     {
         const FMatrix3x3 Normal = FMatrix3x3::MakeNormalMatrix(Instance.Transform);
         const FMeshPool::FMesh* Mesh = MeshPool.GetMesh(Instance.Mesh);
@@ -35,7 +26,7 @@ namespace
             Result.NormalMatrix[Column] = {.X = Normal.At(0, Column), .Y = Normal.At(1, Column), .Z = Normal.At(2, Column), .W = 0.0f};
         }
         Result.MeshIndex = Mesh != nullptr ? Instance.Mesh.Index : InvalidGpuIndex;
-        Result.DebugColor = PackColor(Instance.Color);
+        Result.MaterialIndex = Materials.GetGpuIndex(Instance.Material);
         return Result;
     }
 }
@@ -72,7 +63,7 @@ void FGpuScene::Deinitialize()
     Uploads = nullptr;
 }
 
-void FGpuScene::Update(FRenderScene& Scene, const FMeshPool& MeshPool)
+void FGpuScene::Update(FRenderScene& Scene, const FMeshPool& MeshPool, const FMaterialSystem& Materials)
 {
     const TSpan<const uint32> Dirty = Scene.GetDirtyInstances();
     const TSpan<const FRenderScene::FInstance> Instances = Scene.GetInstances();
@@ -88,7 +79,7 @@ void FGpuScene::Update(FRenderScene& Scene, const FMeshPool& MeshPool)
         Scratch.clear();
         for (size64 Index = RunStart; Index < RunEnd; ++Index)
         {
-            Scratch.push_back(MakeGpuInstance(Instances[Dirty[Index]], MeshPool));
+            Scratch.push_back(MakeGpuInstance(Instances[Dirty[Index]], MeshPool, Materials));
         }
         Uploads->UploadBuffer(InstanceBuffer, static_cast<uint64>(Dirty[RunStart]) * sizeof(FGpuInstance), TSpan<const FGpuInstance>(Scratch));
         RunStart = RunEnd;

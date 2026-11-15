@@ -110,7 +110,6 @@ using FResult = TResult<void>;
         return RESULT_PLATFORM_ERROR(RAVEN_UNIQUE_VARIABLE(NativeResult) __VA_OPT__(, __VA_ARGS__)); \
     }
 
-// Both macros return the error as std::unexpected, so they work in a function returning any TResult type.
 #define RESULT_CHECK(Method) \
     auto RAVEN_UNIQUE_VARIABLE(Result) = Method; \
     if (RAVEN_UNIQUE_VARIABLE(Result).HasError()) \

@@ -50,7 +50,6 @@ namespace Math
         return Value * Value;
     }
 
-    // Works for every type with +, - and * float32: scalars, vectors, colors.
     template <typename T>
     [[nodiscard]] constexpr T Lerp(const T& A, const T& B, const float32 Alpha)
     {

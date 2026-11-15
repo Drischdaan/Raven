@@ -10,7 +10,6 @@
 
 #include "Vector3.hpp"
 
-// Unit quaternion representing a rotation. A * B applies B first, then A (like matrices).
 struct FQuat
 {
     float32 X = 0.0f;

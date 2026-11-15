@@ -15,9 +15,11 @@
 #include "Platform/Window.hpp"
 #include "Renderer/GpuTypes.hpp"
 #include "Renderer/RendererLog.hpp"
+#include "Renderer/Material/MaterialSystem.hpp"
 #include "Renderer/Mesh/MeshPool.hpp"
 #include "Renderer/Passes/DebugMeshPass.hpp"
 #include "Renderer/Scene/GpuScene.hpp"
+#include "Renderer/Texture/TexturePool.hpp"
 #include "Renderer/Utility/TextureStateTracker.hpp"
 #include "Renderer/Utility/UploadManager.hpp"
 
@@ -119,9 +121,15 @@ FResult FRenderer::Initialize(const FRendererDesc& InDesc)
     PipelineCache.Initialize(*Device, ShaderLibrary);
 
     Uploads = MakeUnique<FUploadManager>();
+    Uploads->Initialize(*Device);
     TextureStates = MakeUnique<FTextureStateTracker>();
     MeshPool = MakeUnique<FMeshPool>();
     RESULT_CHECK(MeshPool->Initialize(*Device, *Uploads, {.MaxVertices = Desc.MaxVertices, .MaxIndices = Desc.MaxIndices}));
+    TexturePool = MakeUnique<FTexturePool>();
+    RESULT_CHECK(TexturePool->Initialize(*Device, *Uploads));
+    MaterialSystem = MakeUnique<FMaterialSystem>();
+    RESULT_CHECK(MaterialSystem->Initialize(*Device, *Uploads, *TexturePool));
+    RESULT_CHECK(CreateSamplers());
     GpuScene = MakeUnique<FGpuScene>();
     RESULT_CHECK(GpuScene->Initialize(*Device, *Uploads, Scene.GetMaxInstances()));
 
@@ -150,6 +158,8 @@ void FRenderer::Deinitialize()
         DepthTexture = {};
     }
     GpuScene.reset();
+    MaterialSystem.reset();
+    TexturePool.reset();
     MeshPool.reset();
     TextureStates.reset();
     Uploads.reset();
@@ -184,6 +194,34 @@ FResult FRenderer::CreatePipelines()
 {
     DebugMeshPass = MakeUnique<FDebugMeshPass>();
     RESULT_CHECK(DebugMeshPass->Initialize(PipelineCache, Swapchain->GetFormat(), DepthFormat));
+    return RESULT_OK_EMPTY();
+}
+
+FResult FRenderer::CreateSamplers()
+{
+    const auto MakeSampler = [this](const FGfxSamplerDesc& SamplerDesc) -> TResult<uint32>
+    {
+        RESULT_CHECK_ASSIGN(Device->GetOrCreateSampler(SamplerDesc), Sampler);
+        return Device->GetBindlessIndex(Sampler);
+    };
+
+    RESULT_CHECK_ASSIGN(MakeSampler({.MaxAnisotropy = 8}), LinearWrap);
+    RESULT_CHECK_ASSIGN(MakeSampler({
+                            .AddressU = EGfxAddressMode::Clamp,
+                            .AddressV = EGfxAddressMode::Clamp,
+                            .AddressW = EGfxAddressMode::Clamp,
+                            }), LinearClamp);
+    RESULT_CHECK_ASSIGN(MakeSampler({
+                            .MinFilter = EGfxFilter::Point,
+                            .MagFilter = EGfxFilter::Point,
+                            .MipFilter = EGfxFilter::Point,
+                            .AddressU = EGfxAddressMode::Clamp,
+                            .AddressV = EGfxAddressMode::Clamp,
+                            .AddressW = EGfxAddressMode::Clamp,
+                            }), PointClamp);
+    LinearWrapSampler = LinearWrap;
+    LinearClampSampler = LinearClamp;
+    PointClampSampler = PointClamp;
     return RESULT_OK_EMPTY();
 }
 
@@ -232,6 +270,36 @@ TResult<FMeshHandle> FRenderer::CreateMesh(const FMeshData& Data, const FStringV
 void FRenderer::DestroyMesh(const FMeshHandle Mesh)
 {
     MeshPool->DestroyMesh(Mesh);
+}
+
+TResult<FTextureHandle> FRenderer::CreateTexture(const FTextureData& Data, const FStringView Name)
+{
+    return TexturePool->CreateTexture(Data, Name);
+}
+
+void FRenderer::DestroyTexture(const FTextureHandle Texture)
+{
+    TexturePool->DestroyTexture(Texture);
+}
+
+TResult<FMaterialHandle> FRenderer::CreateMaterial(const FMaterialDesc& Desc, const FStringView Name)
+{
+    return MaterialSystem->CreateMaterial(Desc, Name);
+}
+
+FResult FRenderer::UpdateMaterial(const FMaterialHandle Material, const FMaterialDesc& Desc)
+{
+    return MaterialSystem->UpdateMaterial(Material, Desc);
+}
+
+void FRenderer::DestroyMaterial(const FMaterialHandle Material)
+{
+    MaterialSystem->DestroyMaterial(Material);
+}
+
+FMaterialHandle FRenderer::GetDefaultMaterial() const
+{
+    return MaterialSystem->GetDefaultMaterial();
 }
 
 FResult FRenderer::Render(const FRenderView& View)
@@ -301,7 +369,7 @@ void FRenderer::RecordFrame(IGfxCommandList& CommandList, const FGfxTextureHandl
 {
     CommandList.BeginEvent("Frame");
 
-    GpuScene->Update(Scene, *MeshPool);
+    GpuScene->Update(Scene, *MeshPool, *MaterialSystem);
     Uploads->Flush(CommandList);
 
     const float64 Now = GetSeconds();
@@ -313,6 +381,10 @@ void FRenderer::RecordFrame(IGfxCommandList& CommandList, const FGfxTextureHandl
         .MeshBufferIndex = Device->GetBindlessIndex(MeshPool->GetMeshBuffer()),
         .PositionBufferIndex = Device->GetBindlessIndex(MeshPool->GetPositionBuffer()),
         .AttributeBufferIndex = Device->GetBindlessIndex(MeshPool->GetAttributeBuffer()),
+        .MaterialBufferIndex = Device->GetBindlessIndex(MaterialSystem->GetMaterialBuffer()),
+        .LinearWrapSampler = LinearWrapSampler,
+        .LinearClampSampler = LinearClampSampler,
+        .PointClampSampler = PointClampSampler,
     };
     LastFrameTime = Now;
 
@@ -347,7 +419,7 @@ void FRenderer::RecordFrame(IGfxCommandList& CommandList, const FGfxTextureHandl
     CommandList.SetViewport({.Width = static_cast<float32>(Width), .Height = static_cast<float32>(Height)});
     CommandList.SetScissor({.Width = Width, .Height = Height});
 
-    DebugMeshPass->Render(CommandList, PassInputs, Scene, *MeshPool);
+    DebugMeshPass->Render(CommandList, PassInputs, Scene, *MeshPool, *MaterialSystem);
 
     CommandList.EndRendering();
 

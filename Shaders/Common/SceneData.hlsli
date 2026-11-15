@@ -31,7 +31,7 @@ struct FGpuInstance
     uint MeshIndex;
     uint MaterialIndex;
     uint Flags;
-    uint DebugColor;
+    uint Padding0;
 };
 
 struct FGpuFrameConstants
@@ -45,6 +45,32 @@ struct FGpuFrameConstants
     uint MeshBufferIndex;
     uint PositionBufferIndex;
     uint AttributeBufferIndex;
+
+    uint MaterialBufferIndex;
+    uint LinearWrapSampler;
+    uint LinearClampSampler;
+    uint PointClampSampler;
+};
+
+static const uint MaterialFlag_TwoSided = 1u << 0;
+static const uint MaterialFlag_Unlit = 1u << 1;
+static const uint MaterialFlag_AlphaMasked = 1u << 2;
+
+struct FGpuMaterial
+{
+    float4 BaseColor;
+    float3 Emissive;
+    float AlphaCutoff;
+
+    float Metallic;
+    float Roughness;
+    float NormalScale;
+    uint Flags;
+
+    uint BaseColorTexture;
+    uint NormalTexture;
+    uint MetallicRoughnessTexture;
+    uint EmissiveTexture;
 };
 
 struct FGpuViewConstants
@@ -86,6 +112,27 @@ FGpuVertexAttributes LoadAttributes(uint VertexIndex)
 {
     StructuredBuffer<FGpuVertexAttributes> Attributes = ResourceDescriptorHeap[Frame.AttributeBufferIndex];
     return Attributes[VertexIndex];
+}
+
+FGpuMaterial LoadMaterial(uint MaterialIndex)
+{
+    StructuredBuffer<FGpuMaterial> Materials = ResourceDescriptorHeap[Frame.MaterialBufferIndex];
+    return Materials[MaterialIndex];
+}
+
+SamplerState GetLinearWrapSampler()
+{
+    return SamplerDescriptorHeap[Frame.LinearWrapSampler];
+}
+
+SamplerState GetLinearClampSampler()
+{
+    return SamplerDescriptorHeap[Frame.LinearClampSampler];
+}
+
+SamplerState GetPointClampSampler()
+{
+    return SamplerDescriptorHeap[Frame.PointClampSampler];
 }
 
 float3 TransformNormal(FGpuInstance Instance, float3 Normal)

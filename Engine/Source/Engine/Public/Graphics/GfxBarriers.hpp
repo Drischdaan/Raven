@@ -80,7 +80,7 @@ struct FGfxBufferBarrier
     EGfxBarrierSync SyncAfter = EGfxBarrierSync::None;
     EGfxBarrierAccess AccessBefore = EGfxBarrierAccess::NoAccess;
     EGfxBarrierAccess AccessAfter = EGfxBarrierAccess::NoAccess;
-    uint64 Offset = 0; // D3D12 ignores the range (whole buffer only), Vulkan honours it
+    uint64 Offset = 0;
     uint64 Size = GfxWholeSize;
 };
 

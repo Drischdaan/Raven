@@ -4,8 +4,10 @@
 
 #include "RendererTypes.hpp"
 #include "RenderView.hpp"
+#include "Material/Material.hpp"
 #include "Mesh/MeshData.hpp"
 #include "Scene/RenderScene.hpp"
+#include "Texture/TextureData.hpp"
 #include "Graphics/GfxTypes.hpp"
 #include "Core/Memory/SmartPointers.hpp"
 #include "Core/Memory/Containers/String.hpp"
@@ -19,6 +21,8 @@ class IGfxSwapchain;
 class IGfxCommandList;
 class FUploadManager;
 class FMeshPool;
+class FTexturePool;
+class FMaterialSystem;
 class FGpuScene;
 class FTextureStateTracker;
 class FDebugMeshPass;
@@ -55,6 +59,14 @@ public:
     TResult<FMeshHandle> CreateMesh(const FMeshData& Data, FStringView Name);
     void DestroyMesh(FMeshHandle Mesh);
 
+    TResult<FTextureHandle> CreateTexture(const FTextureData& Data, FStringView Name);
+    void DestroyTexture(FTextureHandle Texture);
+
+    TResult<FMaterialHandle> CreateMaterial(const FMaterialDesc& Desc, FStringView Name);
+    FResult UpdateMaterial(FMaterialHandle Material, const FMaterialDesc& Desc);
+    void DestroyMaterial(FMaterialHandle Material);
+    [[nodiscard]] FMaterialHandle GetDefaultMaterial() const;
+
     [[nodiscard]] FRenderScene& GetScene()
     {
         return Scene;
@@ -89,6 +101,7 @@ private:
     FResult ResolveDirectories();
     FResult CreatePipelines();
     FResult CreateDepthTexture();
+    FResult CreateSamplers();
     FResult HandleResize();
     FResult RenderFrame(const FRenderView& View);
     void RecordFrame(IGfxCommandList& CommandList, FGfxTextureHandle Backbuffer, const FRenderView& View);
@@ -104,11 +117,16 @@ private:
 
     TUniquePtr<FUploadManager> Uploads;
     TUniquePtr<FMeshPool> MeshPool;
+    TUniquePtr<FTexturePool> TexturePool;
+    TUniquePtr<FMaterialSystem> MaterialSystem;
     TUniquePtr<FGpuScene> GpuScene;
     TUniquePtr<FTextureStateTracker> TextureStates;
     TUniquePtr<FDebugMeshPass> DebugMeshPass;
 
     FGfxTextureHandle DepthTexture;
+    uint32 LinearWrapSampler = UINT32_MAX;
+    uint32 LinearClampSampler = UINT32_MAX;
+    uint32 PointClampSampler = UINT32_MAX;
     FMatrix4x4 PrevWorldToClip = FMatrix4x4::Identity();
     float64 StartTime = 0.0;
     float64 LastFrameTime = 0.0;
